@@ -24,6 +24,7 @@
                 <h4>Messages</h4>
                 <div id="message-list" class="explorer-list"></div>
             </div>
+            <button onclick="loadView('protocol', 'protocol')" style="background: #e67e22; margin-top: 15px;">⚙️ Protokol Ayarları</button>
             <button onclick="generateXML()" style="margin-top: 20px; background: #28a745;">XML Üret</button>
             <button onclick="downloadXML()" style="margin-top: 5px; background: #007bff;">XML İndir</button>
             <input type="file" id="xmlFileInput" style="display: none;" accept=".xml" onchange="loadXML(event)">
@@ -48,6 +49,16 @@
                 <select id="newItemType" onchange="toggleSizeInput()"></select>
                 <input type="number" id="newItemSize" placeholder="Bit Boyutu">
                 <button onclick="addFieldToCurrent()">Ekle</button>
+            </div>
+
+            <div id="protocol-crc-toolbar" class="toolbar" style="display: none; border-top: 1px solid #333; padding-top: 10px; margin-top: 10px;">
+                <label style="color:white; margin-right: 10px; align-self: center;">Checksum / CRC Seçimi (Sona Eklenir):</label>
+                <select id="protocolCrcSelect" onchange="changeCrc()" style="width: auto;">
+                    <option value="NONE_0">Yok</option>
+                    <option value="CRC8_8">CRC-8 (8 bit)</option>
+                    <option value="CRC16_16">CRC-16 (16 bit)</option>
+                    <option value="CRC32_32">CRC-32 (32 bit)</option>
+                </select>
             </div>
 
             <div id="enum-view-container" style="display: none;">

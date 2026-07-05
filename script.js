@@ -1,4 +1,5 @@
 const TAL = {
+    protocol: { id: 'protocol', name: 'Protokol Ayarları', type: 'protocol', fields: [], crcType: 'NONE', crcSize: 0, comment: '' },
     enums: [],
     structs: [],
     messages: []
@@ -12,7 +13,6 @@ function generateUUID() {
     return Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
-// ── Custom Modal Engine (replaces window.prompt/confirm blocked on file://) ──
 let _modalCallback = null;
 let _modalCancelCallback = null;
 
@@ -71,7 +71,6 @@ document.addEventListener('keydown', e => {
     }
 });
 
-// Counters for auto-naming dragged elements
 const dragCounters = { enum: 0, struct: 0, message: 0 };
 
 function isValidCppIdentifier(name) {
@@ -90,7 +89,7 @@ function createNew(type) {
     showPrompt(`Yeni ${type} adı:`, name => {
         if (!name) return;
         if (!isValidCppIdentifier(name)) {
-            alert(`"${name}" geçerli bir C++ tanımlayıcısı değil.\nHarfle veya _ ile başlamalı, sadece harf/rakam/_ içermeli.`);
+            alert(`"${name}" geçerli bir C++ tanımlayıcısı değil.`);
             return;
         }
         const allTop = [...TAL.enums, ...TAL.structs, ...TAL.messages];
@@ -113,7 +112,10 @@ function createNew(type) {
             const id = Date.now().toString();
             const newItem = { id, name, type, comment: '', fields: [] };
             if (type === 'struct') TAL.structs.push(newItem);
-            else if (type === 'message') TAL.messages.push(newItem);
+            else if (type === 'message') {
+                TAL.messages.push(newItem);
+                syncProtocolToMessages();
+            }
             renderList();
             loadView(type, id);
         }
@@ -125,11 +127,12 @@ function renderList() {
     const structList = document.getElementById('struct-list');
     const messageList = document.getElementById('message-list');
     
-    enumList.innerHTML = '';
-    structList.innerHTML = '';
-    messageList.innerHTML = '';
+    if (enumList) enumList.innerHTML = '';
+    if (structList) structList.innerHTML = '';
+    if (messageList) messageList.innerHTML = '';
     
     const appendItems = (items, container, type) => {
+        if (!container) return;
         items.forEach(item => {
             const div = document.createElement('div');
             div.className = 'list-item';
@@ -157,6 +160,7 @@ function renderList() {
 }
 
 function getObjectById(type, id) {
+    if (type === 'protocol') return TAL.protocol;
     if (type === 'enum') return TAL.enums.find(x => x.id === id);
     if (type === 'struct') return TAL.structs.find(x => x.id === id);
     if (type === 'message') return TAL.messages.find(x => x.id === id);
@@ -200,7 +204,7 @@ function syncAllSizes() {
     let iterations = 0;
     while (changed && iterations < 10) {
         changed = false;
-        [...TAL.structs, ...TAL.messages].forEach(obj => {
+        [TAL.protocol, ...TAL.structs, ...TAL.messages].forEach(obj => {
             obj.fields.forEach(f => {
                 if (f.typeId !== 'primitive') {
                     const parts = f.typeId.split('_');
@@ -228,28 +232,66 @@ function syncAllSizes() {
     }
 }
 
+function syncProtocolToMessages() {
+    TAL.messages.forEach(msg => {
+        msg.fields = msg.fields.filter(f => !f.isHeader && !f.isCrc);
+        
+        const headerClones = TAL.protocol.fields.filter(f => !f.isSpare).map(f => ({ ...f, isHeader: true, id: generateUUID() }));
+        
+        const crcFields = [];
+        if (TAL.protocol.crcSize > 0) {
+            crcFields.push({
+                id: generateUUID(), name: TAL.protocol.crcType, size: TAL.protocol.crcSize, 
+                typeId: 'primitive', comment: 'Otomatik Checksum/CRC', 
+                isSpare: false, isArray: false, countFieldId: '', isCrc: true
+            });
+        }
+        
+        msg.fields = [...headerClones, ...msg.fields, ...crcFields];
+        rebuildSpares(msg);
+    });
+    syncAllSizes();
+}
+
+function changeCrc() {
+    const val = document.getElementById('protocolCrcSelect').value.split('_');
+    TAL.protocol.crcType = val[0];
+    TAL.protocol.crcSize = parseInt(val[1] || 0);
+    syncProtocolToMessages();
+}
+
 function rebuildSpares(obj) {
-    obj.fields = obj.fields.filter(f => !f.isSpare);
-    
-    let totalBits = 0;
+    if (obj.type === 'enum') return;
+
+    let headers = [];
+    let crc = [];
+    let payload = [];
+
     obj.fields.forEach(f => {
-        totalBits += f.size;
+        if (f.isSpare) return;
+        if (f.isHeader) headers.push(f);
+        else if (f.isCrc) crc.push(f);
+        else payload.push(f);
     });
 
+    if (obj.type === 'protocol') {
+        headers = [...payload];
+        payload = [];
+        crc = [];
+    }
+
+    let newFields = [...headers, ...payload];
+    let totalBits = newFields.reduce((sum, f) => sum + f.size, 0);
+
     let spareSize = totalBits % 8 !== 0 ? 8 - (totalBits % 8) : 0;
-    
     if (spareSize > 0) {
-        obj.fields.push({ 
-            id: generateUUID(),
-            name: "spare", 
-            size: spareSize, 
-            typeId: "primitive", 
-            comment: "Hizalama", 
-            isSpare: true,
-            isArray: false,
-            countFieldId: ""
+        newFields.push({ 
+            id: generateUUID(), name: "spare", size: spareSize, typeId: "primitive", 
+            comment: "Hizalama", isSpare: true, isArray: false, countFieldId: ""
         });
     }
+    
+    obj.fields = [...newFields, ...crc];
 }
 
 function loadView(type, id) {
@@ -262,6 +304,7 @@ function loadView(type, id) {
         document.getElementById('view-title').innerText = "Seçili Öğe Yok";
         document.getElementById('enum-toolbar').style.display = 'none';
         document.getElementById('struct-toolbar').style.display = 'none';
+        document.getElementById('protocol-crc-toolbar').style.display = 'none';
         document.getElementById('enum-view-container').style.display = 'none';
         document.getElementById('memory-map-container').style.display = 'none';
         document.getElementById('delete-element-btn').style.display = 'none';
@@ -270,7 +313,7 @@ function loadView(type, id) {
     }
     
     document.getElementById('view-title').innerText = obj.name + (type === 'enum' ? ` (${obj.size} bit)` : '');
-    document.getElementById('delete-element-btn').style.display = 'block';
+    document.getElementById('delete-element-btn').style.display = type === 'protocol' ? 'none' : 'block';
     document.getElementById('properties-panel').style.display = 'none';
 
     const isEnum = type === 'enum';
@@ -279,12 +322,32 @@ function loadView(type, id) {
     document.getElementById('enum-view-container').style.display = isEnum ? 'block' : 'none';
     
     document.getElementById('struct-toolbar').style.display = !isEnum ? 'flex' : 'none';
+    document.getElementById('protocol-crc-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
     document.getElementById('memory-map-container').style.display = !isEnum ? 'block' : 'none';
 
-    if (isEnum) renderEnumList(obj);
-    else {
+    if (type === 'protocol') {
+        const selectEl = document.getElementById('protocolCrcSelect');
+        if (selectEl) selectEl.value = `${TAL.protocol.crcType}_${TAL.protocol.crcSize}`;
+    }
+
+    if (isEnum) {
+        if (document.getElementById('enumGlobalSize')) document.getElementById('enumGlobalSize').value = obj.size;
+        renderEnumList(obj);
+    } else {
         updateTypeSelect();
         renderMemoryMap(obj);
+    }
+}
+
+function updateEnumSize() {
+    if (currentViewType !== 'enum') return;
+    const obj = getObjectById(currentViewType, currentViewId);
+    const newSize = parseInt(document.getElementById('enumGlobalSize').value);
+    
+    if (obj.size !== newSize) {
+        obj.size = newSize;
+        document.getElementById('view-title').innerText = obj.name + ` (${obj.size} bit)`;
+        syncAllSizes();
     }
 }
 
@@ -310,7 +373,8 @@ function deleteSelectedItem() {
     } else {
         obj.fields.splice(selectedItemIndex, 1);
         rebuildSpares(obj);
-        syncAllSizes();
+        if (currentViewType === 'protocol') syncProtocolToMessages();
+        else syncAllSizes();
         renderMemoryMap(obj);
     }
     
@@ -320,6 +384,7 @@ function deleteSelectedItem() {
 
 function updateTypeSelect() {
     const select = document.getElementById('newItemType');
+    if (!select) return;
     select.innerHTML = '<option value="primitive">Primitive (Özel Boyut)</option>';
     
     TAL.enums.forEach(e => {
@@ -394,7 +459,7 @@ function addFieldToCurrent() {
     if (!isValidCppIdentifier(name)) { alert(`"${name}" geçerli bir C++ tanımlayıcısı değil.`); return; }
 
     const obj = getObjectById(currentViewType, currentViewId);
-    if (!isFieldNameUnique(obj, name)) { alert(`"${name}" bu struct/message içinde zaten kullanımda.`); return; }
+    if (!isFieldNameUnique(obj, name)) { alert(`"${name}" bu struct/message/protocol içinde zaten kullanımda.`); return; }
 
     let size = 0;
     if (typeId === 'primitive') {
@@ -406,13 +471,17 @@ function addFieldToCurrent() {
     }
 
     const fieldId = generateUUID();
-    obj.fields.push({ id: fieldId, name: name, size: size, typeId: typeId, comment: "", isSpare: false, isArray: false, countFieldId: "" });
+    const newField = { id: fieldId, name: name, size: size, typeId: typeId, comment: "", isSpare: false, isArray: false, countFieldId: "" };
     
+    obj.fields.push(newField);
     rebuildSpares(obj);
+    
     document.getElementById('newItemName').value = '';
     if (typeId === 'primitive') document.getElementById('newItemSize').value = '';
     
-    syncAllSizes();
+    if (currentViewType === 'protocol') syncProtocolToMessages();
+    else syncAllSizes();
+    
     renderMemoryMap(obj);
 }
 
@@ -420,8 +489,8 @@ function insertSidebarElement(type, id, targetFieldIndex) {
     dragCounters[type] = (dragCounters[type] || 0) + 1;
     const typeCap = type.charAt(0).toUpperCase() + type.slice(1);
     let name = `Dragged${typeCap}${dragCounters[type]}`;
-    // Ensure unique within current struct/message
     const obj = getObjectById(currentViewType, currentViewId);
+    
     while (obj && !isFieldNameUnique(obj, name)) {
         dragCounters[type]++;
         name = `Dragged${typeCap}${dragCounters[type]}`;
@@ -438,8 +507,12 @@ function insertSidebarElement(type, id, targetFieldIndex) {
     const newField = { id: fieldId, name: name, size: size, typeId: typeId, comment: "", isSpare: false, isArray: false, countFieldId: "" };
     
     if (targetFieldIndex === null) {
-        obj.fields = obj.fields.filter(f => !f.isSpare);
-        obj.fields.push(newField);
+        let headers = obj.fields.filter(f => f.isHeader);
+        let crc = obj.fields.filter(f => f.isCrc);
+        let payload = obj.fields.filter(f => !f.isHeader && !f.isCrc && !f.isSpare);
+        
+        payload.push(newField);
+        obj.fields = [...headers, ...payload, ...crc];
     } else {
         const targetField = obj.fields[targetFieldIndex];
         obj.fields = obj.fields.filter(f => !f.isSpare);
@@ -452,14 +525,14 @@ function insertSidebarElement(type, id, targetFieldIndex) {
     }
 
     rebuildSpares(obj);
-    syncAllSizes();
+    if (currentViewType === 'protocol') syncProtocolToMessages();
+    else syncAllSizes();
     renderMemoryMap(obj);
 }
 
 function dropOnContainer(e) {
     const container = document.getElementById('memory-map-container');
-    
-    if (container.contains(e.target)) {
+    if (container && container.contains(e.target)) {
         e.preventDefault();
         const sidebarDataStr = e.dataTransfer.getData('application/json');
         if (sidebarDataStr) {
@@ -487,14 +560,15 @@ function dropField(e, targetIndex) {
         } catch (err) {}
     }
     
+    const obj = getObjectById(currentViewType, currentViewId);
+    const targetField = obj.fields[targetIndex];
+    if (targetField && (targetField.isSpare || targetField.isHeader || targetField.isCrc)) return;
+    
     const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
     if (isNaN(fromIndex) || fromIndex === targetIndex) return;
     
-    const obj = getObjectById(currentViewType, currentViewId);
-    if (obj.fields[targetIndex].isSpare) return; 
-
     const draggedField = obj.fields[fromIndex];
-    const targetField = obj.fields[targetIndex];
+    if (!draggedField || draggedField.isHeader || draggedField.isCrc) return;
 
     obj.fields = obj.fields.filter(f => !f.isSpare);
 
@@ -505,14 +579,14 @@ function dropField(e, targetIndex) {
     obj.fields.splice(newTargetIndex, 0, draggedField);
 
     rebuildSpares(obj);
-    syncAllSizes();
+    if (currentViewType === 'protocol') syncProtocolToMessages();
+    else syncAllSizes();
     renderMemoryMap(obj);
 }
 
 function calculateByteLabels(obj) {
     let byteLabels = [];
     let currentConst = 0;
-    let currentDyn = [];
     
     let startBit = 0;
     let startBytes = [];
@@ -632,8 +706,10 @@ function renderMemoryMap(obj) {
         table += '<tr>';
         table += `<td class="byte-col">${byteLabels[byteIdx]}</td>`;
         
-        for (let colIdx = 0; colIdx < 8; colIdx++) {
-            let flatIdx = byteIdx * 8 + (7 - colIdx);
+        for (let visualCol = 0; visualCol < 8; visualCol++) {
+            let bitWeight = 7 - visualCol;
+            let flatIdx = byteIdx * 8 + bitWeight;
+            
             if (renderedBits[flatIdx]) continue;
 
             let fieldIndex = bitArray[flatIdx];
@@ -644,19 +720,19 @@ function renderMemoryMap(obj) {
             }
             
             let colSpan = 0;
-            for (let c = colIdx; c < 8; c++) {
-                let checkFlatIdx = byteIdx * 8 + (7 - c);
-                if (bitArray[checkFlatIdx] === fieldIndex) colSpan++;
+            for (let c = visualCol; c < 8; c++) {
+                let w = 7 - c;
+                if (bitArray[byteIdx * 8 + w] === fieldIndex) colSpan++;
                 else break;
             }
             
             let rowSpan = 1;
-            if (colIdx === 0 && colSpan === 8) {
+            if (visualCol === 0 && colSpan === 8) {
                 for (let r = byteIdx + 1; r < totalBytes; r++) {
                     let rowBelongsToField = true;
                     for (let c = 0; c < 8; c++) {
-                        let checkFlatIdx = r * 8 + (7 - c);
-                        if (bitArray[checkFlatIdx] !== fieldIndex) {
+                        let w = 7 - c;
+                        if (bitArray[r * 8 + w] !== fieldIndex) {
                             rowBelongsToField = false;
                             break;
                         }
@@ -668,13 +744,14 @@ function renderMemoryMap(obj) {
             
             for (let r = 0; r < rowSpan; r++) {
                 for (let c = 0; c < colSpan; c++) {
-                    renderedBits[(byteIdx + r) * 8 + (7 - (colIdx + c))] = true;
+                    let w = 7 - (visualCol + c);
+                    renderedBits[(byteIdx + r) * 8 + w] = true;
                 }
             }
             
             let field = obj.fields[fieldIndex];
             let classNames = 'data-cell';
-            let draggableAttr = field.isSpare ? '' : `draggable="true" ondragstart="event.dataTransfer.setData('text/plain', ${fieldIndex})" ondragover="event.preventDefault()" ondrop="dropField(event, ${fieldIndex})"`;
+            let draggableAttr = (field.isSpare || field.isHeader || field.isCrc) ? '' : `draggable="true" ondragstart="event.dataTransfer.setData('text/plain', ${fieldIndex})" ondragover="event.preventDefault()" ondrop="dropField(event, ${fieldIndex})"`;
 
             if (field.isSpare) classNames += ' spare';
             else {
@@ -684,6 +761,7 @@ function renderMemoryMap(obj) {
                 else if (field.typeId.startsWith('message_')) classNames += ' type-message';
             }
             
+            if (field.isHeader || field.isCrc) classNames += ' locked-field';
             if (field.isArray) classNames += ' dynamic-array-frame';
             if (fieldIndex === selectedItemIndex) classNames += ' selected';
 
@@ -724,8 +802,15 @@ function selectItem(index) {
         document.getElementById('prop-type').style.display = 'block';
         document.getElementById('prop-type').value = getCustomTypeName(item.typeId);
 
-        if (item.isSpare) {
-            // Spare selected: show conversion UI, hide array controls, make size readonly
+        if (item.isHeader || item.isCrc) {
+            document.getElementById('prop-name').readOnly = true;
+            document.getElementById('prop-size').readOnly = true;
+            document.getElementById('prop-is-array-container').style.display = 'none';
+            document.getElementById('prop-count-field-container').style.display = 'none';
+            document.getElementById('prop-spare-section').style.display = 'none';
+            document.getElementById('prop-delete-btn').style.display = 'none';
+        } else if (item.isSpare) {
+            document.getElementById('prop-name').readOnly = false;
             document.getElementById('prop-size').readOnly = true;
             document.getElementById('prop-is-array-container').style.display = 'none';
             document.getElementById('prop-count-field-container').style.display = 'none';
@@ -735,7 +820,7 @@ function selectItem(index) {
             document.getElementById('prop-spare-name').value = '';
             document.getElementById('prop-delete-btn').style.display = 'none';
         } else {
-            // Allow editing size only for primitive fields
+            document.getElementById('prop-name').readOnly = false;
             document.getElementById('prop-size').readOnly = item.typeId !== 'primitive';
             document.getElementById('prop-is-array-container').style.display = 'block';
             document.getElementById('prop-is-array').checked = !!item.isArray;
@@ -754,7 +839,7 @@ function updateCountFieldSelect(obj, currentItem) {
     const select = document.getElementById('prop-count-field');
     select.innerHTML = '';
     
-    const validFields = obj.fields.filter(f => !f.isSpare && f.id !== currentItem.id && f.typeId === 'primitive');
+    const validFields = obj.fields.filter(f => !f.isSpare && !f.isHeader && !f.isCrc && f.id !== currentItem.id && f.typeId === 'primitive');
     
     validFields.forEach(f => {
         const option = document.createElement('option');
@@ -783,7 +868,7 @@ function toggleIsArray() {
     
     if (item.isArray) {
         const select = document.getElementById('prop-count-field');
-        const validFields = obj.fields.filter(f => !f.isSpare && f.id !== item.id && f.typeId === 'primitive');
+        const validFields = obj.fields.filter(f => !f.isSpare && !f.isHeader && !f.isCrc && f.id !== item.id && f.typeId === 'primitive');
         if (validFields.length > 0) {
             item.countFieldId = validFields[0].id;
         } else {
@@ -815,8 +900,7 @@ function saveSize() {
     if (selectedItemIndex === null) return;
     const obj = getObjectById(currentViewType, currentViewId);
     const item = obj.fields[selectedItemIndex];
-    // Only allow size editing on non-spare primitives
-    if (!item || item.isSpare || item.typeId !== 'primitive') return;
+    if (!item || item.isSpare || item.isHeader || item.isCrc || item.typeId !== 'primitive') return;
 
     const newSize = parseInt(document.getElementById('prop-size').value);
     if (isNaN(newSize) || newSize <= 0) {
@@ -826,9 +910,11 @@ function saveSize() {
     }
     item.size = newSize;
     rebuildSpares(obj);
-    syncAllSizes();
+    
+    if (currentViewType === 'protocol') syncProtocolToMessages();
+    else syncAllSizes();
+    
     renderMemoryMap(obj);
-    // Re-select to refresh panel
     const newIndex = obj.fields.findIndex(f => f.id === item.id);
     if (newIndex !== -1) selectItem(newIndex);
 }
@@ -844,7 +930,7 @@ function convertSpare() {
 
     if (!name) { alert('Alan adı boş olamaz.'); return; }
     if (!isValidCppIdentifier(name)) { alert(`"${name}" geçerli bir C++ tanımlayıcısı değil.`); return; }
-    if (!isFieldNameUnique(obj, name)) { alert(`"${name}" bu struct/message içinde zaten kullanımda.`); return; }
+    if (!isFieldNameUnique(obj, name)) { alert(`"${name}" bu struct/message/protocol içinde zaten kullanımda.`); return; }
     if (isNaN(useBits) || useBits <= 0 || useBits > spare.size) {
         alert(`Geçersiz boyut. 1 ile ${spare.size} arasında bir değer girin.`);
         return;
@@ -853,17 +939,18 @@ function convertSpare() {
     const fieldId = generateUUID();
     const newField = { id: fieldId, name: name, size: useBits, typeId: 'primitive', comment: '', isSpare: false, isArray: false, countFieldId: '' };
 
-    // Replace spare with new field + remaining spare (if any)
     const remaining = spare.size - useBits;
     const spareIndex = selectedItemIndex;
     obj.fields.splice(spareIndex, 1, newField);
     if (remaining > 0) {
         obj.fields.splice(spareIndex + 1, 0, {
-            name: 'spare', size: remaining, typeId: 'primitive', comment: 'Hizalama', isSpare: true
+            id: generateUUID(), name: 'spare', size: remaining, typeId: 'primitive', comment: 'Hizalama', isSpare: true, isArray: false, countFieldId: ''
         });
     }
 
-    syncAllSizes();
+    if (currentViewType === 'protocol') syncProtocolToMessages();
+    else syncAllSizes();
+    
     renderMemoryMap(obj);
     document.getElementById('properties-panel').style.display = 'none';
     selectedItemIndex = null;
@@ -873,11 +960,35 @@ function saveComment() {
     if (selectedItemIndex === null) return;
     const obj = getObjectById(currentViewType, currentViewId);
     const item = currentViewType === 'enum' ? obj.items[selectedItemIndex] : obj.fields[selectedItemIndex];
+    
+    if (currentViewType !== 'enum' && !item.isHeader && !item.isCrc) {
+        const newName = document.getElementById('prop-name').value.trim();
+        if (newName && newName !== item.name) {
+            if (isValidCppIdentifier(newName) && isFieldNameUnique(obj, newName, item.id)) {
+                item.name = newName;
+            } else {
+                document.getElementById('prop-name').value = item.name;
+                alert(`Geçersiz veya çakışan ad: "${newName}"`);
+            }
+        }
+    }
+    
     item.comment = document.getElementById('prop-comment').value;
+    
+    if (currentViewType === 'protocol') syncProtocolToMessages();
+    if (currentViewType !== 'enum') renderMemoryMap(obj);
 }
 
 function generateXML() {
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<TAL_Protocol>\n';
+
+    xml += `  <Protocol crcType="${TAL.protocol.crcType}" crcSize="${TAL.protocol.crcSize}">\n`;
+    TAL.protocol.fields.forEach(f => {
+        let typeName = f.typeId === 'primitive' ? 'primitive' : getCustomTypeName(f.typeId);
+        let isArrayAttr = f.isArray ? ` isArray="true" countField="${getCountFieldName(TAL.protocol, f.countFieldId)}"` : '';
+        xml += `    <Field name="${f.name}" type="${typeName}" size="${f.size}" spare="${f.isSpare}"${isArrayAttr} comment="${f.comment}"/>\n`;
+    });
+    xml += `  </Protocol>\n\n`;
 
     TAL.enums.forEach(e => {
         xml += `  <Enum name="${e.name}" size="${e.size}">\n`;
@@ -902,7 +1013,9 @@ function generateXML() {
         m.fields.forEach(f => {
             let typeName = f.typeId === 'primitive' ? 'primitive' : getCustomTypeName(f.typeId);
             let isArrayAttr = f.isArray ? ` isArray="true" countField="${getCountFieldName(m, f.countFieldId)}"` : '';
-            xml += `    <Field name="${f.name}" type="${typeName}" size="${f.size}" spare="${f.isSpare}"${isArrayAttr} comment="${f.comment}"/>\n`;
+            let isHeaderAttr = f.isHeader ? ` isHeader="true"` : '';
+            let isCrcAttr = f.isCrc ? ` isCrc="true"` : '';
+            xml += `    <Field name="${f.name}" type="${typeName}" size="${f.size}" spare="${f.isSpare}"${isArrayAttr}${isHeaderAttr}${isCrcAttr} comment="${f.comment}"/>\n`;
         });
         xml += `  </Message>\n`;
     });
@@ -913,7 +1026,7 @@ function generateXML() {
 
 function downloadXML() {
     generateXML();
-
+    
     const xmlContent = document.getElementById('xmlOutput').value;
     if (!xmlContent) return;
     
@@ -941,11 +1054,35 @@ function loadXML(event) {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, "text/xml");
         
+        TAL.protocol = { id: 'protocol', name: 'Protokol Ayarları', type: 'protocol', fields: [], crcType: 'NONE', crcSize: 0, comment: '' };
         TAL.enums = [];
         TAL.structs = [];
         TAL.messages = [];
         
         const nameMap = {};
+        
+        const protocolNode = xmlDoc.getElementsByTagName("Protocol")[0];
+        if (protocolNode) {
+            TAL.protocol.crcType = protocolNode.getAttribute("crcType") || 'NONE';
+            TAL.protocol.crcSize = parseInt(protocolNode.getAttribute("crcSize") || 0);
+            
+            const fieldNodes = protocolNode.getElementsByTagName("Field");
+            for (let j = 0; j < fieldNodes.length; j++) {
+                const fNode = fieldNodes[j];
+                TAL.protocol.fields.push({
+                    id: generateUUID(),
+                    name: fNode.getAttribute("name"),
+                    rawType: fNode.getAttribute("type"),
+                    size: parseInt(fNode.getAttribute("size")),
+                    isSpare: fNode.getAttribute("spare") === "true",
+                    isArray: fNode.getAttribute("isArray") === "true",
+                    rawCountField: fNode.getAttribute("countField") || "",
+                    comment: fNode.getAttribute("comment") || "",
+                    typeId: "primitive",
+                    countFieldId: ""
+                });
+            }
+        }
         
         const enums = xmlDoc.getElementsByTagName("Enum");
         for (let i = 0; i < enums.length; i++) {
@@ -986,6 +1123,8 @@ function loadXML(event) {
                         size: parseInt(fNode.getAttribute("size")),
                         isSpare: fNode.getAttribute("spare") === "true",
                         isArray: fNode.getAttribute("isArray") === "true",
+                        isHeader: fNode.getAttribute("isHeader") === "true",
+                        isCrc: fNode.getAttribute("isCrc") === "true",
                         rawCountField: fNode.getAttribute("countField") || "",
                         comment: fNode.getAttribute("comment") || "",
                         typeId: "primitive",
@@ -1001,10 +1140,10 @@ function loadXML(event) {
         parseComplex("Struct", TAL.structs, "struct");
         parseComplex("Message", TAL.messages, "message");
         
-        const resolveRefs = (talArray) => {
-            talArray.forEach(obj => {
+        const resolveRefs = (objList) => {
+            objList.forEach(obj => {
                 obj.fields.forEach(f => {
-                    if (f.rawType !== 'primitive' && nameMap[f.rawType]) {
+                    if (f.rawType && f.rawType !== 'primitive' && nameMap[f.rawType]) {
                         f.typeId = nameMap[f.rawType].type + '_' + nameMap[f.rawType].id;
                     }
                     if (f.isArray && f.rawCountField) {
@@ -1017,6 +1156,7 @@ function loadXML(event) {
             });
         };
         
+        resolveRefs([TAL.protocol]);
         resolveRefs(TAL.structs);
         resolveRefs(TAL.messages);
         
