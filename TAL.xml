@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TAL_Protocol>
+  <Struct name="Selamalr">
+    <Field name="QWER" type="primitive" size="12" spare="false" comment=""/>
+    <Field name="RRRR" type="primitive" size="4" spare="false" comment=""/>
+  </Struct>
+</TAL_Protocol>

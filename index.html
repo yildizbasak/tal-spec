@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TAL - Transmission Abstraction Layer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <div id="sidebar-left">
+            <h3>TAL Explorer</h3>
+            <button onclick="createNew('enum')">+ Yeni Enum</button>
+            <button onclick="createNew('struct')">+ Yeni Struct</button>
+            <button onclick="createNew('message')">+ Yeni Mesaj</button>
+            <div class="explorer-section">
+                <h4>Enums</h4>
+                <div id="enum-list" class="explorer-list"></div>
+            </div>
+            <div class="explorer-section">
+                <h4>Structs</h4>
+                <div id="struct-list" class="explorer-list"></div>
+            </div>
+            <div class="explorer-section">
+                <h4>Messages</h4>
+                <div id="message-list" class="explorer-list"></div>
+            </div>
+            <button onclick="generateXML()" style="margin-top: 20px; background: #28a745;">XML Üret</button>
+            <button onclick="downloadXML()" style="margin-top: 5px; background: #007bff;">XML İndir</button>
+            <input type="file" id="xmlFileInput" style="display: none;" accept=".xml" onchange="loadXML(event)">
+            <button onclick="document.getElementById('xmlFileInput').click()" style="margin-top: 5px; background: #17a2b8;">XML Yükle</button>
+            <textarea id="xmlOutput" readonly></textarea>
+        </div>
+
+        <div id="main-view">
+            <div class="view-header">
+                <h2 id="view-title">Seçili Öğe Yok</h2>
+                <button id="delete-element-btn" onclick="deleteCurrentElement()" style="display:none; background: #d32f2f; width: auto; padding: 5px 15px;">Öğeyi Sil</button>
+            </div>
+            
+            <div id="enum-toolbar" class="toolbar" style="display: none;">
+                <input type="text" id="enumItemName" placeholder="Eleman Adı (Örn: STATUS_OK)">
+                <input type="number" id="enumItemValue" placeholder="Değer (Boş=Oto Artış)">
+                <button onclick="addEnumItem()">Ekle</button>
+            </div>
+            
+            <div id="struct-toolbar" class="toolbar" style="display: none;">
+                <input type="text" id="newItemName" placeholder="Alan Adı">
+                <select id="newItemType" onchange="toggleSizeInput()"></select>
+                <input type="number" id="newItemSize" placeholder="Bit Boyutu">
+                <button onclick="addFieldToCurrent()">Ekle</button>
+            </div>
+
+            <div id="enum-view-container" style="display: none;">
+                <div class="enum-header"><span>Ad</span><span>Değer</span></div>
+                <div id="enum-list-grid"></div>
+            </div>
+            
+            <div id="memory-map-container" style="display: none;" ondragover="event.preventDefault()" ondrop="dropOnContainer(event)">
+                <!-- Tablo JavaScript tarafından oluşturulacak -->
+            </div>
+        </div>
+
+        <div id="sidebar-right">
+            <h3>Özellikler & Açıklamalar</h3>
+            <div id="properties-panel" style="display: none;">
+                <label>Adı:</label>
+                <input type="text" id="prop-name" readonly>
+                <label id="prop-type-label" style="display:none;">Veri Tipi:</label>
+                <input type="text" id="prop-type" readonly style="display:none;">
+                <label id="prop-size-label">Boyut / Değer:</label>
+                <input type="text" id="prop-size" onchange="saveSize()">
+                
+                <div id="prop-is-array-container" style="display: none; margin-bottom: 10px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px;">
+                        <input type="checkbox" id="prop-is-array" onchange="toggleIsArray()" style="width: auto; margin-bottom: 0;">
+                        Dinamik Dizi mi?
+                    </label>
+                </div>
+                <div id="prop-count-field-container" style="display: none; margin-bottom: 10px;">
+                    <label>Dizi Boyutu (Count Alanı):</label>
+                    <select id="prop-count-field" onchange="changeCountField()"></select>
+                </div>
+
+                <div id="prop-spare-section" style="display: none; border: 1px dashed #555; padding: 8px; margin-bottom: 10px;">
+                    <label style="color: #aaa; font-size: 11px;">SPARE'Yİ KULLAN</label>
+                    <input type="text" id="prop-spare-name" placeholder="Yeni alan adı">
+                    <input type="number" id="prop-spare-use-size" placeholder="Kaç bit?">
+                    <button onclick="convertSpare()">Dönüştür</button>
+                </div>
+
+                <label>Genel Açıklama (Comment):</label>
+                <textarea id="prop-comment" onchange="saveComment()"></textarea>
+                <button id="prop-delete-btn" onclick="deleteSelectedItem()" style="background: #d32f2f; margin-top: 15px;">Seçili Alanı Sil</button>
+            </div>
+        </div>
+    </div>
+    <!-- Custom Modal (replaces browser prompt/confirm blocked on file://) -->
+    <div id="modal-overlay" style="display:none;">
+        <div id="modal-box">
+            <div id="modal-message"></div>
+            <input type="text" id="modal-input" placeholder="">
+            <select id="modal-select" style="display:none;"></select>
+            <div id="modal-buttons">
+                <button id="modal-ok" onclick="modalOk()">Tamam</button>
+                <button id="modal-cancel" onclick="modalCancel()" style="background:#555;">İptal</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
