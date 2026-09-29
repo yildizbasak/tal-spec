@@ -32,7 +32,20 @@
             <textarea id="xmlOutput" readonly></textarea>
         </div>
 
+        <div id="settings-sidebar" style="display: none; width: 250px; background: #2c2c2c; border-right: 1px solid #444; padding: 15px; overflow-y: auto;">
+            <h3 style="color: #e67e22; margin-bottom: 20px;">Ayarlar Menüsü</h3>
+            <div class="settings-nav">
+                <button id="nav-protocol-settings" onclick="switchSettingsTab('protocol')" class="settings-nav-btn active">
+                    📋 Protokol Ayarları
+                </button>
+                <button id="nav-message-settings" onclick="switchSettingsTab('message')" class="settings-nav-btn">
+                    💬 Mesaj Ayarları
+                </button>
+            </div>
+        </div>
+
         <div id="main-view">
+            <div id="main-view-inner">
             <div class="view-header">
                 <h2 id="view-title">Seçili Öğe Yok</h2>
                 <button id="delete-element-btn" onclick="deleteCurrentElement()" style="display:none; background: #d32f2f; width: auto; padding: 5px 15px;">Öğeyi Sil</button>
@@ -51,14 +64,151 @@
                 <button onclick="addFieldToCurrent()">Ekle</button>
             </div>
 
-            <div id="protocol-crc-toolbar" class="toolbar" style="display: none; border-top: 1px solid #333; padding-top: 10px; margin-top: 10px;">
-                <label style="color:white; margin-right: 10px; align-self: center;">Checksum / CRC Seçimi (Sona Eklenir):</label>
-                <select id="protocolCrcSelect" onchange="changeCrc()" style="width: auto;">
-                    <option value="NONE_0">Yok</option>
-                    <option value="CRC8_8">CRC-8 (8 bit)</option>
-                    <option value="CRC16_16">CRC-16 (16 bit)</option>
-                    <option value="CRC32_32">CRC-32 (32 bit)</option>
-                </select>
+            <div id="settings-content" style="display: none; padding: 20px;">
+                <div id="protocol-settings-panel" style="display: none;">
+                    <div id="protocol-startdata-toolbar" class="toolbar" style="border-top: 1px solid #333; padding-top: 10px; margin-top: 10px;">
+        <label style="color:white; margin-right: 10px; align-self: center; display: flex; align-items: center; gap: 6px;">
+            <input type="checkbox" id="startDataEnabled" onchange="changeStartData()" style="width: auto; margin: 0;">
+            Start Data (Mesaj Başı):
+        </label>
+        <input type="text" id="startDataValue" value="0xAAAAAAAA" onchange="changeStartData()" style="width: 150px; margin-bottom: 0;">
+        <select id="startDataSize" onchange="changeStartData()" style="width: auto; margin-bottom: 0;">
+            <option value="1">1 byte</option>
+            <option value="2">2 byte</option>
+            <option value="4">4 byte</option>
+            <option value="8">8 byte</option>
+        </select>
+    </div>
+
+                    <div id="protocol-enddata-toolbar" class="toolbar" style="border-top: 1px solid #333; padding-top: 10px; margin-top: 10px;">
+        <label style="color:white; margin-right: 10px; align-self: center; display: flex; align-items: center; gap: 6px;">
+            <input type="checkbox" id="endDataEnabled" onchange="changeEndData()" style="width: auto; margin: 0;">
+            End Data (Mesaj Sonu):
+        </label>
+        <input type="text" id="endDataValue" value="0x55555555" onchange="changeEndData()" style="width: 150px; margin-bottom: 0;">
+        <select id="endDataSize" onchange="changeEndData()" style="width: auto; margin-bottom: 0;">
+            <option value="1">1 byte</option>
+            <option value="2">2 byte</option>
+            <option value="4">4 byte</option>
+            <option value="8">8 byte</option>
+        </select>
+    </div>
+
+                    <div id="protocol-crc-toolbar" class="toolbar" style="border-top: 1px solid #333; padding-top: 10px; margin-top: 10px;">
+                        <label style="color:white; margin-right: 10px; align-self: center;">Checksum / CRC Seçimi (Sona Eklenir):</label>
+                        <select id="protocolCrcSelect" onchange="changeCrc()" style="width: auto;">
+                            <option value="NONE_0">Yok</option>
+                            <option value="CRC8_8">CRC-8 (8 bit)</option>
+                            <option value="CRC16_16">CRC-16 (16 bit)</option>
+                            <option value="CRC32_32">CRC-32 (32 bit)</option>
+                        </select>
+                    </div>
+
+                    <div id="protocol-header-toolbar" class="toolbar" style="border-top: 1px solid #333; padding-top: 15px; margin-top: 10px;">
+                        <h4 style="color: #e67e22; margin: 0 0 15px 0; font-size: 14px; border-bottom: 1px solid #555; padding-bottom: 8px;">Mesaj Başlığı (Message Header) Ayarları</h4>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px;">
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;">Sender Address (Hex/Text):</label>
+                                <input type="text" id="headerSenderAddress" placeholder="0x00" onchange="changeHeaderConfig()" style="width: 100%; margin-bottom: 0;">
+                            </div>
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;">Receiver Address (Hex/Text):</label>
+                                <input type="text" id="headerReceiverAddress" placeholder="0xFF" onchange="changeHeaderConfig()" style="width: 100%; margin-bottom: 0;">
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;">Broadcast:</label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="headerBroadcast" onchange="changeHeaderConfig()" style="width: auto; margin: 0;">
+                                    <span style="color: #fff; font-size: 13px;">Aktif</span>
+                                </label>
+                            </div>
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;">Message ID:</label>
+                                <input type="number" id="headerMessageId" placeholder="0" onchange="changeHeaderConfig()" style="width: 100%; margin-bottom: 0;">
+                            </div>
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;">Message Type:</label>
+                                <select id="headerMessageType" onchange="changeHeaderConfig()" style="width: 100%; margin-bottom: 0;">
+                                    <option value="command">Komut (Command)</option>
+                                    <option value="response">Yanıt (Response)</option>
+                                    <option value="telemetry">Telemetri</option>
+                                    <option value="ack">ACK</option>
+                                    <option value="nack">NACK</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px;">
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;">Message Size (bytes):</label>
+                                <input type="number" id="headerMessageSize" placeholder="0" onchange="changeHeaderConfig()" style="width: 100%; margin-bottom: 0;">
+                            </div>
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;">Protocol Version:</label>
+                                <input type="text" id="headerProtocolVersion" placeholder="1.0" onchange="changeHeaderConfig()" style="width: 100%; margin-bottom: 0;">
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;">Sequence Number:</label>
+                                <input type="number" id="headerSequenceNumber" placeholder="0" onchange="changeHeaderConfig()" style="width: 100%; margin-bottom: 0;">
+                            </div>
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;">Priority Level:</label>
+                                <select id="headerPriorityLevel" onchange="changeHeaderConfig()" style="width: 100%; margin-bottom: 0;">
+                                    <option value="low">Düşük (Low)</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="high">Yüksek (High)</option>
+                                    <option value="urgent">Acil (Urgent)</option>
+                                </select>
+                            </div>
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;">Timestamp:</label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="headerTimestamp" onchange="changeHeaderConfig()" style="width: auto; margin: 0;">
+                                    <span style="color: #fff; font-size: 13px;">Aktif</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="protocol-byte-table" style="margin-top: 20px; border: 1px solid #444; border-radius: 4px; overflow: hidden;">
+                        <div style="background: #3c3c3c; padding: 10px 15px; border-bottom: 1px solid #444;">
+                            <h4 style="margin: 0; color: #e67e22; font-size: 14px;">📊 Protokol Byte Tablosu</h4>
+                        </div>
+                        <table id="byte-table" style="width: 100%; border-collapse: collapse; background: #2c2c2c;">
+                            <thead>
+                                <tr style="background: #3c3c3c;">
+                                    <th style="padding: 10px; text-align: left; border-bottom: 2px solid #555; color: #ccc; font-size: 12px;">Parametre Adı</th>
+                                    <th style="padding: 10px; text-align: left; border-bottom: 2px solid #555; color: #ccc; font-size: 12px;">Veri Tipi</th>
+                                    <th style="padding: 10px; text-align: right; border-bottom: 2px solid #555; color: #ccc; font-size: 12px;">Byte Uzunluğu</th>
+                                    <th style="padding: 10px; text-align: center; border-bottom: 2px solid #555; color: #ccc; font-size: 12px;">Durum</th>
+                                </tr>
+                            </thead>
+                            <tbody id="byte-table-body">
+                                <!-- JavaScript ile doldurulacak -->
+                            </tbody>
+                            <tfoot>
+                                <tr style="background: #4a4a4a; font-weight: bold;">
+                                    <td colspan="2" style="padding: 12px; border-top: 2px solid #e67e22; color: #fff;">Toplam Protokol Boyutu:</td>
+                                    <td id="total-bytes" style="padding: 12px; text-align: right; border-top: 2px solid #e67e22; color: #e67e22; font-size: 16px;">0 Byte</td>
+                                    <td style="padding: 12px; border-top: 2px solid #e67e22;"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="message-settings-panel" style="display: none; text-align: center; padding: 60px 20px;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">🚧</div>
+                    <h3 style="color: #888; margin-bottom: 10px;">Yakında Eklenecek</h3>
+                    <p style="color: #666;">Mesaj Ayarları özelliği yakında kullanıma sunulacaktır.</p>
+                </div>
             </div>
 
             <div id="enum-view-container" style="display: none;">
@@ -68,6 +218,7 @@
             
             <div id="memory-map-container" style="display: none;" ondragover="event.preventDefault()" ondrop="dropOnContainer(event)">
                 <!-- Tablo JavaScript tarafından oluşturulacak -->
+            </div>
             </div>
         </div>
 

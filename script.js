@@ -1,5 +1,37 @@
 const TAL = {
-    protocol: { id: 'protocol', name: 'Protokol Ayarları', type: 'protocol', fields: [], crcType: 'NONE', crcSize: 0, comment: '' },
+    protocol: { 
+        id: 'protocol', 
+        name: 'Protokol Ayarları', 
+        type: 'protocol', 
+        fields: [], 
+        crcType: 'NONE', 
+        crcSize: 0, 
+        comment: '',
+        config: {
+            startData: {
+                enabled: false,
+                value: '0xAAAAAAAA',
+                size: 4
+            },
+            endData: {
+                enabled: false,
+                value: '0x55555555',
+                size: 4
+            },
+            header: {
+                senderAddress: '0x00',
+                receiverAddress: '0xFF',
+                broadcast: false,
+                messageId: 0,
+                messageType: 'command',
+                messageSize: 0,
+                protocolVersion: '1.0',
+                sequenceNumber: 0,
+                priorityLevel: 'normal',
+                timestamp: false
+            }
+        }
+    },
     enums: [],
     structs: [],
     messages: []
@@ -8,6 +40,92 @@ const TAL = {
 let currentViewType = null;
 let currentViewId = null;
 let selectedItemIndex = null;
+let currentSettingsTab = null;
+
+// Hash Routing
+function updateHash(hash) {
+    window.location.hash = hash;
+}
+
+function handleHashChange() {
+    const hash = window.location.hash.substring(1); // Remove #
+    
+    if (!hash) {
+        // Default to explorer view
+        showExplorer(false);
+        return;
+    }
+    
+    if (hash === 'explorer') {
+        showExplorer(false);
+    } else if (hash === 'protocol') {
+        loadView('protocol', 'protocol', false);
+    } else if (hash === 'message') {
+        // Show settings sidebar with message tab (without updating hash to avoid circular updates)
+        switchSettingsTab('message', false);
+        
+        // Ensure settings sidebar is shown
+        document.getElementById('sidebar-left').style.display = 'none';
+        document.getElementById('settings-sidebar').style.display = 'flex';
+        document.getElementById('settings-content').style.display = 'block';
+    } else if (hash.startsWith('enum:')) {
+        const id = hash.split(':')[1];
+        loadView('enum', id, false);
+    } else if (hash.startsWith('struct:')) {
+        const id = hash.split(':')[1];
+        loadView('struct', id, false);
+    } else if (hash.startsWith('message-')) {
+        const id = hash.split('-')[1];
+        loadView('message', id, false);
+    }
+}
+
+function showExplorer(updateHashFlag = true) {
+    currentSettingsTab = null;
+    
+    // Update hash only when not called from hash change handler
+    if (updateHashFlag) {
+        updateHash('explorer');
+    }
+    
+    // Hide settings sidebar and content
+    document.getElementById('settings-sidebar').style.display = 'none';
+    document.getElementById('settings-content').style.display = 'none';
+    
+    // Show original sidebar
+    document.getElementById('sidebar-left').style.display = 'flex';
+    
+    // Reset main view to show nothing selected
+    document.getElementById('view-title').innerText = "Seçili Öğe Yok";
+    document.getElementById('enum-toolbar').style.display = 'none';
+    document.getElementById('struct-toolbar').style.display = 'none';
+    document.getElementById('protocol-crc-toolbar').style.display = 'none';
+    document.getElementById('protocol-startdata-toolbar').style.display = 'none';
+    document.getElementById('protocol-enddata-toolbar').style.display = 'none';
+    document.getElementById('protocol-header-toolbar').style.display = 'none';
+    document.getElementById('enum-view-container').style.display = 'none';
+    document.getElementById('memory-map-container').style.display = 'none';
+    document.getElementById('delete-element-btn').style.display = 'none';
+    document.getElementById('properties-panel').style.display = 'none';
+    
+    currentViewType = null;
+    currentViewId = null;
+    selectedItemIndex = null;
+}
+
+// Initialize hash routing on page load
+document.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('hashchange', handleHashChange);
+    
+    // Check initial hash
+    const hash = window.location.hash.substring(1);
+    if (!hash) {
+        // Default to explorer view without updating hash initially
+        showExplorer(false);
+    } else {
+        handleHashChange();
+    }
+});
 
 function generateUUID() {
     return Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9);
@@ -258,6 +376,144 @@ function changeCrc() {
     TAL.protocol.crcType = val[0];
     TAL.protocol.crcSize = parseInt(val[1] || 0);
     syncProtocolToMessages();
+    updateByteTable();
+}
+
+function changeStartData() {
+    TAL.protocol.config.startData.enabled = document.getElementById('startDataEnabled').checked;
+    TAL.protocol.config.startData.value = document.getElementById('startDataValue').value;
+    TAL.protocol.config.startData.size = parseInt(document.getElementById('startDataSize').value);
+    syncProtocolToMessages();
+    updateByteTable();
+}
+
+function changeEndData() {
+    TAL.protocol.config.endData.enabled = document.getElementById('endDataEnabled').checked;
+    TAL.protocol.config.endData.value = document.getElementById('endDataValue').value;
+    TAL.protocol.config.endData.size = parseInt(document.getElementById('endDataSize').value);
+    syncProtocolToMessages();
+    updateByteTable();
+}
+
+function changeHeaderConfig() {
+    TAL.protocol.config.header.senderAddress = document.getElementById('headerSenderAddress').value;
+    TAL.protocol.config.header.receiverAddress = document.getElementById('headerReceiverAddress').value;
+    TAL.protocol.config.header.broadcast = document.getElementById('headerBroadcast').checked;
+    TAL.protocol.config.header.messageId = parseInt(document.getElementById('headerMessageId').value) || 0;
+    TAL.protocol.config.header.messageType = document.getElementById('headerMessageType').value;
+    TAL.protocol.config.header.messageSize = parseInt(document.getElementById('headerMessageSize').value) || 0;
+    TAL.protocol.config.header.protocolVersion = document.getElementById('headerProtocolVersion').value;
+    TAL.protocol.config.header.sequenceNumber = parseInt(document.getElementById('headerSequenceNumber').value) || 0;
+    TAL.protocol.config.header.priorityLevel = document.getElementById('headerPriorityLevel').value;
+    TAL.protocol.config.header.timestamp = document.getElementById('headerTimestamp').checked;
+    syncProtocolToMessages();
+    updateByteTable();
+}
+
+function switchSettingsTab(tab, updateHashFlag = true) {
+    currentSettingsTab = tab;
+    
+    // Update hash only when not called from hash change handler
+    if (updateHashFlag) {
+        if (tab === 'message') {
+            updateHash('message');
+        } else if (tab === 'protocol') {
+            updateHash('protocol');
+        }
+    }
+    
+    // Update nav buttons
+    document.getElementById('nav-protocol-settings').classList.remove('active');
+    document.getElementById('nav-message-settings').classList.remove('active');
+    document.getElementById(`nav-${tab}-settings`).classList.add('active');
+    
+    // Show/hide panels
+    document.getElementById('protocol-settings-panel').style.display = tab === 'protocol' ? 'block' : 'none';
+    document.getElementById('message-settings-panel').style.display = tab === 'message' ? 'block' : 'none';
+    
+    if (tab === 'protocol') {
+        updateByteTable();
+    }
+}
+
+function updateByteTable() {
+    const tbody = document.getElementById('byte-table-body');
+    tbody.innerHTML = '';
+    
+    let totalBytes = 0;
+    const config = TAL.protocol.config;
+    
+    // Start Data
+    if (config.startData.enabled) {
+        tbody.innerHTML += `
+            <tr>
+                <td>Start Data</td>
+                <td>Hex/Bytes</td>
+                <td>${config.startData.size}</td>
+                <td><span class="status-badge status-active">Aktif</span></td>
+            </tr>
+        `;
+        totalBytes += config.startData.size;
+    }
+    
+    // Header fields - simplified logic: always show, use different status
+    const headerFields = [
+        { name: 'Sender Address', type: 'Hex/Text', enabled: config.header.senderAddress !== '', size: 1 },
+        { name: 'Receiver Address', type: 'Hex/Text', enabled: config.header.receiverAddress !== '', size: 1 },
+        { name: 'Broadcast', type: 'Boolean', enabled: config.header.broadcast, size: 1 },
+        { name: 'Message ID', type: 'Number', enabled: config.header.messageId !== 0, size: 2 },
+        { name: 'Message Type', type: 'Enum', enabled: true, size: 1 },
+        { name: 'Message Size', type: 'Number', enabled: config.header.messageSize !== 0, size: 2 },
+        { name: 'Protocol Version', type: 'String', enabled: config.header.protocolVersion !== '', size: 1 },
+        { name: 'Sequence Number', type: 'Number', enabled: config.header.sequenceNumber !== 0, size: 2 },
+        { name: 'Priority Level', type: 'Enum', enabled: true, size: 1 },
+        { name: 'Timestamp', type: 'Boolean', enabled: config.header.timestamp, size: 4 }
+    ];
+    
+    headerFields.forEach(field => {
+        const statusClass = field.enabled ? 'status-active' : 'status-inactive';
+        const statusText = field.enabled ? 'Aktif' : 'Pasif';
+        tbody.innerHTML += `
+            <tr>
+                <td>${field.name}</td>
+                <td>${field.type}</td>
+                <td>${field.size}</td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+            </tr>
+        `;
+        if (field.enabled) {
+            totalBytes += field.size;
+        }
+    });
+    
+    // End Data
+    if (config.endData.enabled) {
+        tbody.innerHTML += `
+            <tr>
+                <td>End Data</td>
+                <td>Hex/Bytes</td>
+                <td>${config.endData.size}</td>
+                <td><span class="status-badge status-active">Aktif</span></td>
+            </tr>
+        `;
+        totalBytes += config.endData.size;
+    }
+    
+    // CRC
+    if (TAL.protocol.crcSize > 0) {
+        tbody.innerHTML += `
+            <tr>
+                <td>CRC (${TAL.protocol.crcType})</td>
+                <td>Checksum</td>
+                <td>${TAL.protocol.crcSize}</td>
+                <td><span class="status-badge status-active">Aktif</span></td>
+            </tr>
+        `;
+        totalBytes += TAL.protocol.crcSize;
+    }
+    
+    // Update total
+    document.getElementById('total-bytes').textContent = `${totalBytes} Byte`;
 }
 
 function rebuildSpares(obj) {
@@ -294,10 +550,23 @@ function rebuildSpares(obj) {
     obj.fields = [...newFields, ...crc];
 }
 
-function loadView(type, id) {
+function loadView(type, id, updateHashFlag = true) {
     currentViewType = type;
     currentViewId = id;
     selectedItemIndex = null;
+    
+    // Update hash based on view type (only when not called from hash change handler)
+    if (updateHashFlag) {
+        if (type === 'protocol') {
+            updateHash('protocol');
+        } else if (type === 'enum') {
+            updateHash(`enum:${id}`);
+        } else if (type === 'struct') {
+            updateHash(`struct:${id}`);
+        } else if (type === 'message') {
+            updateHash(`message-${id}`);
+        }
+    }
     
     const obj = getObjectById(type, id);
     if (!obj) {
@@ -305,10 +574,16 @@ function loadView(type, id) {
         document.getElementById('enum-toolbar').style.display = 'none';
         document.getElementById('struct-toolbar').style.display = 'none';
         document.getElementById('protocol-crc-toolbar').style.display = 'none';
+        document.getElementById('protocol-startdata-toolbar').style.display = 'none';
+        document.getElementById('protocol-enddata-toolbar').style.display = 'none';
+        document.getElementById('protocol-header-toolbar').style.display = 'none';
         document.getElementById('enum-view-container').style.display = 'none';
         document.getElementById('memory-map-container').style.display = 'none';
         document.getElementById('delete-element-btn').style.display = 'none';
         document.getElementById('properties-panel').style.display = 'none';
+        document.getElementById('settings-sidebar').style.display = 'none';
+        document.getElementById('settings-content').style.display = 'none';
+        document.getElementById('sidebar-left').style.display = 'flex';
         return;
     }
     
@@ -323,11 +598,51 @@ function loadView(type, id) {
     
     document.getElementById('struct-toolbar').style.display = !isEnum ? 'flex' : 'none';
     document.getElementById('protocol-crc-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
+    document.getElementById('protocol-startdata-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
+    document.getElementById('protocol-enddata-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
+    document.getElementById('protocol-header-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
     document.getElementById('memory-map-container').style.display = !isEnum ? 'block' : 'none';
 
     if (type === 'protocol') {
+        // Hide original sidebar, show settings sidebar
+        document.getElementById('sidebar-left').style.display = 'none';
+        document.getElementById('settings-sidebar').style.display = 'flex';
+        document.getElementById('settings-content').style.display = 'block';
+        
+        // Default to protocol settings tab (without updating hash)
+        if (!currentSettingsTab) {
+            switchSettingsTab('protocol', false);
+        }
+        
         const selectEl = document.getElementById('protocolCrcSelect');
         if (selectEl) selectEl.value = `${TAL.protocol.crcType}_${TAL.protocol.crcSize}`;
+        
+        document.getElementById('startDataEnabled').checked = TAL.protocol.config.startData.enabled;
+        document.getElementById('startDataValue').value = TAL.protocol.config.startData.value;
+        document.getElementById('startDataSize').value = TAL.protocol.config.startData.size;
+        
+        document.getElementById('endDataEnabled').checked = TAL.protocol.config.endData.enabled;
+        document.getElementById('endDataValue').value = TAL.protocol.config.endData.value;
+        document.getElementById('endDataSize').value = TAL.protocol.config.endData.size;
+        
+        document.getElementById('headerSenderAddress').value = TAL.protocol.config.header.senderAddress;
+        document.getElementById('headerReceiverAddress').value = TAL.protocol.config.header.receiverAddress;
+        document.getElementById('headerBroadcast').checked = TAL.protocol.config.header.broadcast;
+        document.getElementById('headerMessageId').value = TAL.protocol.config.header.messageId;
+        document.getElementById('headerMessageType').value = TAL.protocol.config.header.messageType;
+        document.getElementById('headerMessageSize').value = TAL.protocol.config.header.messageSize;
+        document.getElementById('headerProtocolVersion').value = TAL.protocol.config.header.protocolVersion;
+        document.getElementById('headerSequenceNumber').value = TAL.protocol.config.header.sequenceNumber;
+        document.getElementById('headerPriorityLevel').value = TAL.protocol.config.header.priorityLevel;
+        document.getElementById('headerTimestamp').checked = TAL.protocol.config.header.timestamp;
+        
+        updateByteTable();
+    } else {
+        // When switching to enum/struct/message views, ensure original sidebar is shown
+        document.getElementById('sidebar-left').style.display = 'flex';
+        document.getElementById('settings-sidebar').style.display = 'none';
+        document.getElementById('settings-content').style.display = 'none';
+        currentSettingsTab = null;
     }
 
     if (isEnum) {
@@ -1054,7 +1369,39 @@ function loadXML(event) {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, "text/xml");
         
-        TAL.protocol = { id: 'protocol', name: 'Protokol Ayarları', type: 'protocol', fields: [], crcType: 'NONE', crcSize: 0, comment: '' };
+        TAL.protocol = { 
+            id: 'protocol', 
+            name: 'Protokol Ayarları', 
+            type: 'protocol', 
+            fields: [], 
+            crcType: 'NONE', 
+            crcSize: 0, 
+            comment: '',
+            config: {
+                startData: {
+                    enabled: false,
+                    value: '0xAAAAAAAA',
+                    size: 4
+                },
+                endData: {
+                    enabled: false,
+                    value: '0x55555555',
+                    size: 4
+                },
+                header: {
+                    senderAddress: '0x00',
+                    receiverAddress: '0xFF',
+                    broadcast: false,
+                    messageId: 0,
+                    messageType: 'command',
+                    messageSize: 0,
+                    protocolVersion: '1.0',
+                    sequenceNumber: 0,
+                    priorityLevel: 'normal',
+                    timestamp: false
+                }
+            }
+        };
         TAL.enums = [];
         TAL.structs = [];
         TAL.messages = [];
