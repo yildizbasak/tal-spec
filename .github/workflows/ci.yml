@@ -1,0 +1,23 @@
+name: CI Workflow
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-code:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu Çek (Checkout)
+        uses: actions/checkout@v4
+
+      - name: Lint
+        run: echo "Linting işlemi yapılıyor..."
+        
+      - name: Test
+        run: echo "Testler çalıştırılıyor..."
+        
+      - name: Build
+        run: echo "Build işlemi yapılıyor..."
