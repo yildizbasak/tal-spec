@@ -73,3 +73,5 @@
 
 
 * **Compatibility**: Designed to be the front-end for a future code-generator that can map these XML definitions directly into C++ structs or Qt-based serialization layers.
+
+Test
