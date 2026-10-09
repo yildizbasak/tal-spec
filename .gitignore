@@ -1,0 +1,15 @@
+# İşletim Sistemi
+.DS_Store
+Thumbs.db
+
+# IDE ve Editörler
+.vscode/
+.idea/
+
+# Bağımlılıklar ve Build Çıktıları
+node_modules/
+bin/
+obj/
+dist/
+build/
+*.log
