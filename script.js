@@ -995,7 +995,7 @@ function renderMemoryMap(obj) {
     container.innerHTML = '';
 
     if (obj.fields.length === 0) {
-        container.innerHTML = '<div style="padding: 50px; text-align: center; color: #888; border: 2px dashed #3c3c3c;">Boş. Soldan öğe sürükleyin veya yukarıdan alan ekleyin.</div>';
+        container.innerHTML = '<div style="padding: 50px; text-align: center; color: var(--text-muted); border: 2px dashed var(--border-strong);">Boş. Soldan öğe sürükleyin veya yukarıdan alan ekleyin.</div>';
         return;
     }
 
