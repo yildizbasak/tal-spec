@@ -48,10 +48,9 @@ function updateHash(hash) {
 }
 
 function handleHashChange() {
-    const hash = window.location.hash.substring(1); // Remove #
+    const hash = window.location.hash.substring(1);
     
     if (!hash) {
-        // Default to explorer view
         showExplorer(false);
         return;
     }
@@ -61,13 +60,10 @@ function handleHashChange() {
     } else if (hash === 'protocol') {
         loadView('protocol', 'protocol', false);
     } else if (hash === 'message') {
-        // Show settings sidebar with message tab (without updating hash to avoid circular updates)
+        // DÜZELTME: Sayfa yenilendiğinde verilerin (ve Delete butonunun vs) doğru yüklenmesi için
+        // önce protokol view'ını yüklüyoruz, ardından message sekmesine geçiriyoruz.
+        loadView('protocol', 'protocol', false);
         switchSettingsTab('message', false);
-        
-        // Ensure settings sidebar is shown
-        document.getElementById('sidebar-left').style.display = 'none';
-        document.getElementById('settings-sidebar').style.display = 'flex';
-        document.getElementById('settings-content').style.display = 'block';
     } else if (hash.startsWith('enum:')) {
         const id = hash.split(':')[1];
         loadView('enum', id, false);
@@ -255,6 +251,10 @@ function renderList() {
             const div = document.createElement('div');
             div.className = 'list-item';
             div.innerText = item.name;
+            div.tabIndex = 0; 
+            div.onkeydown = (e) => {
+                if (e.key === 'Enter') loadView(item.type, item.id);
+            };
             div.onclick = () => loadView(item.type, item.id);
             
             if (type === 'enum' || type === 'struct') {
@@ -430,7 +430,12 @@ function switchSettingsTab(tab, updateHashFlag = true) {
     // Show/hide panels
     document.getElementById('protocol-settings-panel').style.display = tab === 'protocol' ? 'block' : 'none';
     document.getElementById('message-settings-panel').style.display = tab === 'message' ? 'block' : 'none';
-    
+
+    const viewTitle = document.getElementById('view-title');
+    if (viewTitle) {
+        viewTitle.innerText = tab === 'protocol' ? 'Protokol Ayarları' : 'Mesaj Ayarları';
+    }
+
     if (tab === 'protocol') {
         updateByteTable();
     }
@@ -442,32 +447,31 @@ function updateByteTable() {
     
     let totalBytes = 0;
     const config = TAL.protocol.config;
-    
-    // Start Data
+
     if (config.startData.enabled) {
         tbody.innerHTML += `
             <tr>
                 <td>Start Data</td>
                 <td>Hex/Bytes</td>
-                <td>${config.startData.size}</td>
-                <td><span class="status-badge status-active">Aktif</span></td>
+                <td style="font-family: monospace; color: #a5d6ff;">${config.startData.value}</td>
+                <td style="text-align: right;">${config.startData.size}</td>
+                <td style="text-align: center;"><span class="status-badge status-active">Aktif</span></td>
             </tr>
         `;
         totalBytes += config.startData.size;
     }
     
-    // Header fields - simplified logic: always show, use different status
     const headerFields = [
-        { name: 'Sender Address', type: 'Hex/Text', enabled: config.header.senderAddress !== '', size: 1 },
-        { name: 'Receiver Address', type: 'Hex/Text', enabled: config.header.receiverAddress !== '', size: 1 },
-        { name: 'Broadcast', type: 'Boolean', enabled: config.header.broadcast, size: 1 },
-        { name: 'Message ID', type: 'Number', enabled: config.header.messageId !== 0, size: 2 },
-        { name: 'Message Type', type: 'Enum', enabled: true, size: 1 },
-        { name: 'Message Size', type: 'Number', enabled: config.header.messageSize !== 0, size: 2 },
-        { name: 'Protocol Version', type: 'String', enabled: config.header.protocolVersion !== '', size: 1 },
-        { name: 'Sequence Number', type: 'Number', enabled: config.header.sequenceNumber !== 0, size: 2 },
-        { name: 'Priority Level', type: 'Enum', enabled: true, size: 1 },
-        { name: 'Timestamp', type: 'Boolean', enabled: config.header.timestamp, size: 4 }
+        { name: 'Sender Address', type: 'Hex/Text', hex: config.header.senderAddress || '-', enabled: config.header.senderAddress !== '', size: 1 },
+        { name: 'Receiver Address', type: 'Hex/Text', hex: config.header.receiverAddress || '-', enabled: config.header.receiverAddress !== '', size: 1 },
+        { name: 'Broadcast', type: 'Boolean', hex: config.header.broadcast ? '0x01' : '0x00', enabled: config.header.broadcast, size: 1 },
+        { name: 'Message ID', type: 'Number', hex: '0x' + (config.header.messageId || 0).toString(16).padStart(4, '0').toUpperCase(), enabled: config.header.messageId !== 0, size: 2 },
+        { name: 'Message Type', type: 'Enum', hex: '-', enabled: true, size: 1 },
+        { name: 'Message Size', type: 'Number', hex: '-', enabled: config.header.messageSize !== 0, size: 2 },
+        { name: 'Protocol Version', type: 'String', hex: config.header.protocolVersion || '-', enabled: config.header.protocolVersion !== '', size: 1 },
+        { name: 'Sequence Number', type: 'Number', hex: '-', enabled: config.header.sequenceNumber !== 0, size: 2 },
+        { name: 'Priority Level', type: 'Enum', hex: '-', enabled: true, size: 1 },
+        { name: 'Timestamp', type: 'Boolean', hex: '-', enabled: config.header.timestamp, size: 4 }
     ];
     
     headerFields.forEach(field => {
@@ -477,8 +481,9 @@ function updateByteTable() {
             <tr>
                 <td>${field.name}</td>
                 <td>${field.type}</td>
-                <td>${field.size}</td>
-                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                <td style="font-family: monospace; color: #a5d6ff;">${field.hex}</td>
+                <td style="text-align: right;">${field.size}</td>
+                <td style="text-align: center;"><span class="status-badge ${statusClass}">${statusText}</span></td>
             </tr>
         `;
         if (field.enabled) {
@@ -489,11 +494,12 @@ function updateByteTable() {
     // End Data
     if (config.endData.enabled) {
         tbody.innerHTML += `
-            <tr>
+           <tr>
                 <td>End Data</td>
                 <td>Hex/Bytes</td>
-                <td>${config.endData.size}</td>
-                <td><span class="status-badge status-active">Aktif</span></td>
+                <td style="font-family: monospace; color: #a5d6ff;">${config.endData.value}</td>
+                <td style="text-align: right;">${config.endData.size}</td>
+                <td style="text-align: center;"><span class="status-badge status-active">Aktif</span></td>
             </tr>
         `;
         totalBytes += config.endData.size;
@@ -505,14 +511,14 @@ function updateByteTable() {
             <tr>
                 <td>CRC (${TAL.protocol.crcType})</td>
                 <td>Checksum</td>
-                <td>${TAL.protocol.crcSize}</td>
-                <td><span class="status-badge status-active">Aktif</span></td>
+                <td style="font-family: monospace; color: #a5d6ff;">Oto. Hesaplanır</td>
+                <td style="text-align: right;">${TAL.protocol.crcSize}</td>
+                <td style="text-align: center;"><span class="status-badge status-active">Aktif</span></td>
             </tr>
         `;
         totalBytes += TAL.protocol.crcSize;
     }
     
-    // Update total
     document.getElementById('total-bytes').textContent = `${totalBytes} Byte`;
 }
 
@@ -555,7 +561,6 @@ function loadView(type, id, updateHashFlag = true) {
     currentViewId = id;
     selectedItemIndex = null;
     
-    // Update hash based on view type (only when not called from hash change handler)
     if (updateHashFlag) {
         if (type === 'protocol') {
             updateHash('protocol');
@@ -604,12 +609,11 @@ function loadView(type, id, updateHashFlag = true) {
     document.getElementById('memory-map-container').style.display = !isEnum ? 'block' : 'none';
 
     if (type === 'protocol') {
-        // Hide original sidebar, show settings sidebar
+
         document.getElementById('sidebar-left').style.display = 'none';
         document.getElementById('settings-sidebar').style.display = 'flex';
         document.getElementById('settings-content').style.display = 'block';
         
-        // Default to protocol settings tab (without updating hash)
         if (!currentSettingsTab) {
             switchSettingsTab('protocol', false);
         }
@@ -638,7 +642,6 @@ function loadView(type, id, updateHashFlag = true) {
         
         updateByteTable();
     } else {
-        // When switching to enum/struct/message views, ensure original sidebar is shown
         document.getElementById('sidebar-left').style.display = 'flex';
         document.getElementById('settings-sidebar').style.display = 'none';
         document.getElementById('settings-content').style.display = 'none';
@@ -1513,4 +1516,20 @@ function loadXML(event) {
         document.getElementById('xmlOutput').value = xmlText;
     };
     reader.readAsText(file);
+}
+
+function validateHex(inputElement, errorSpanId) {
+    const errorSpan = document.getElementById(errorSpanId);
+    if (!errorSpan) return;
+    
+    const hexRegex = /^0x[0-9A-Fa-f]+$/;
+    const inputValue = inputElement.value.trim();
+    
+    if (inputValue !== "" && !hexRegex.test(inputValue)) {
+        errorSpan.style.display = "block"; 
+        inputElement.style.border = "2px solid #e74c3c"; 
+    } else {
+        errorSpan.style.display = "none";
+        inputElement.style.border = "1px solid #444"; 
+    }
 }
