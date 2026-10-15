@@ -1,15 +1,45 @@
-# İşletim Sistemi
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+
+# IDE - VS Code
+.vscode/
+*.vscode-settings
+
+# IDE - IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# IDE - Eclipse
+*.xml.orig
+.settings/
+bin/
+out/
+
+# OS files
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# IDE ve Editörler
-.vscode/
-.idea/
+# Logs
+*.log
 
-# Bağımlılıklar ve Build Çıktıları
-node_modules/
-bin/
-obj/
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Build / dist output
 dist/
 build/
-*.log
+node_modules/
+
+# Local runtime data
+data/
+*.sqlite
+*.db
