@@ -43,3 +43,5 @@ node_modules/
 data/
 *.sqlite
 *.db
+
+.pi/

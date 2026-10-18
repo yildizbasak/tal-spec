@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TAL schemaVersion="1.0">
+  <Metadata>
+    <Name>SimpleTelemetry</Name>
+    <Version major="1" minor="0" patch="0"/>
+    <Description>Sıcaklık ve nem telemetri protokolü</Description>
+    <Author>yildizbasak</Author>
+    <CreatedAt>2026-10-18T10:00:00Z</CreatedAt>
+    <LastModifiedAt>2026-10-18T10:00:00Z</LastModifiedAt>
+  </Metadata>
+
+  <Protocols>
+    <Protocol id="a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1" name="TelemetryProtocol">
+      <Description>Basit sensör telemetri</Description>
+      <Framing>
+        <StartMarker enabled="true">
+          <Value>0x7E</Value>
+        </StartMarker>
+        <EndMarker enabled="false"/>
+        <ByteStuffing enabled="false"/>
+        <Padding>0x00</Padding>
+        <Endianness>Big</Endianness>
+        <MaxPayloadSize>64</MaxPayloadSize>
+      </Framing>
+      <Header>
+        <Field id="b1b1b1b1-0000-0000-0000-000000000001" name="Sync"        type="u8" size="8"  role="sync"        required="true"/>
+        <Field id="b1b1b1b1-0000-0000-0000-000000000002" name="SenderId"    type="u8" size="8"  role="sender"      required="true"/>
+        <Field id="b1b1b1b1-0000-0000-0000-000000000003" name="MessageId"   type="u8" size="8"  role="messageId"   required="true"/>
+        <Field id="b1b1b1b1-0000-0000-0000-000000000004" name="PayloadSize" type="u8" size="8"  role="payloadSize" required="true"/>
+      </Header>
+      <Integrity>
+        <Scope>Payload</Scope>
+        <Position>afterPayload</Position>
+        <Algorithm>
+          <Type>crc</Type>
+          <Bits>8</Bits>
+          <Polynomial>0x07</Polynomial>
+          <InitValue>0x00</InitValue>
+          <XorOut>0x00</XorOut>
+        </Algorithm>
+      </Integrity>
+      <Addressing>
+        <BroadcastId>0xFF</BroadcastId>
+      </Addressing>
+    </Protocol>
+  </Protocols>
+
+  <Sides>
+    <Side id="c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1" name="SensorNode">
+      <Description>Telemetri sensörü</Description>
+      <Type>slave</Type>
+      <Address>0x10</Address>
+    </Side>
+    <Side id="c2c2c2c2-c2c2-c2c2-c2c2-c2c2c2c2c2c2" name="Gateway">
+      <Description>Merkezi alıcı</Description>
+      <Type>master</Type>
+      <Address>0x00</Address>
+    </Side>
+  </Sides>
+
+  <Structs>
+    <Struct id="d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1" name="TelemetryData">
+      <Description>Sıcaklık ve nem değerleri</Description>
+      <Field id="e1e1e1e1-0000-0000-0000-000000000001" name="temperature" type="i16" size="16"/>
+      <Field id="e1e1e1e1-0000-0000-0000-000000000002" name="humidity"    type="u8"  size="8"/>
+      <Spare size="8"/>
+    </Struct>
+  </Structs>
+
+  <Messages>
+    <Message id="f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1" name="TelemetryReport">
+      <Description>Periyodik telemetri raporu (fire-and-forget)</Description>
+      <Source      ref="c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1"/>
+      <Destination ref="c2c2c2c2-c2c2-c2c2-c2c2-c2c2c2c2c2c2"/>
+      <MessageId>0x10</MessageId>
+      <Protocol    ref="a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1"/>
+      <Payload     ref="d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1"/>
+    </Message>
+  </Messages>
+</TAL>
