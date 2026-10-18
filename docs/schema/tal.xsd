@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    elementFormDefault="unqualified"
+    attributeFormDefault="unqualified">
+
+    <!-- ===== Root ===== -->
+    <xs:element name="TAL" type="TALType" />
+
+    <xs:complexType name="TALType">
+        <xs:sequence>
+            <xs:element name="Metadata" type="MetadataType" />
+            <xs:element name="Protocols" type="ProtocolsType" minOccurs="0" />
+            <xs:element name="Sides" type="SidesType" minOccurs="0" />
+            <xs:element name="Enums" type="EnumsType" minOccurs="0" />
+            <xs:element name="Structs" type="StructsType" minOccurs="0" />
+            <xs:element name="Messages" type="MessagesType" minOccurs="0" />
+        </xs:sequence>
+        <xs:attribute name="schemaVersion" type="xs:string" use="required" />
+    </xs:complexType>
+
+    <!-- ===== Simple types ===== -->
+    <xs:simpleType name="UuidType">
+        <xs:restriction base="xs:string">
+            <xs:pattern
+                value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="HexType">
+        <xs:restriction base="xs:string">
+            <xs:pattern value="0x[0-9a-fA-F]+" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="EndiannessType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Big" />
+            <xs:enumeration value="Little" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="FieldTypeEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="u8" />
+            <xs:enumeration value="u16" />
+            <xs:enumeration value="u32" />
+            <xs:enumeration value="u64" />
+            <xs:enumeration value="i8" />
+            <xs:enumeration value="i16" />
+            <xs:enumeration value="i32" />
+            <xs:enumeration value="i64" />
+            <xs:enumeration value="bool" />
+            <xs:enumeration value="enum" />
+            <xs:enumeration value="struct" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="RoleType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="sync" />
+            <xs:enumeration value="sender" />
+            <xs:enumeration value="destination" />
+            <xs:enumeration value="broadcast" />
+            <xs:enumeration value="messageId" />
+            <xs:enumeration value="messageType" />
+            <xs:enumeration value="payloadSize" />
+            <xs:enumeration value="protocolVersion" />
+            <xs:enumeration value="sequenceNumber" />
+            <xs:enumeration value="priority" />
+            <xs:enumeration value="timestamp" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="SideTypeEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="master" />
+            <xs:enumeration value="slave" />
+            <xs:enumeration value="device" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="IntegrityScopeType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Payload" />
+            <xs:enumeration value="HeaderAndPayload" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="IntegrityPositionType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="afterHeader" />
+            <xs:enumeration value="afterPayload" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="AlgorithmTypeEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="crc" />
+            <xs:enumeration value="checksum" />
+            <xs:enumeration value="custom" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- ===== Metadata ===== -->
+    <xs:complexType name="MetadataType">
+        <xs:sequence>
+            <xs:element name="Name" type="xs:string" />
+            <xs:element name="Version" type="VersionType" />
+            <xs:element name="Description" type="xs:string" minOccurs="0" />
+            <xs:element name="Author" type="xs:string" minOccurs="0" />
+            <xs:element name="CreatedAt" type="xs:dateTime" minOccurs="0" />
+            <xs:element name="LastModifiedAt" type="xs:dateTime" minOccurs="0" />
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="VersionType">
+        <xs:attribute name="major" type="xs:nonNegativeInteger" use="required" />
+        <xs:attribute name="minor" type="xs:nonNegativeInteger" use="required" />
+        <xs:attribute name="patch" type="xs:nonNegativeInteger" use="required" />
+    </xs:complexType>
+
+    <!-- ===== Field & Spare ===== -->
+    <xs:complexType name="FieldType">
+        <xs:sequence>
+            <xs:element name="Description" type="xs:string" minOccurs="0" />
+            <xs:element name="EnumValues" type="EnumValuesType" minOccurs="0" />
+        </xs:sequence>
+        <xs:attribute name="id" type="UuidType" use="required" />
+        <xs:attribute name="name" type="xs:string" use="required" />
+        <xs:attribute name="type" type="FieldTypeEnum" use="required" />
+        <xs:attribute name="size" type="xs:positiveInteger" use="required" />
+        <xs:attribute name="ref" type="UuidType" use="optional" />
+        <xs:attribute name="role" type="RoleType" use="optional" />
+        <xs:attribute name="required" type="xs:boolean" use="optional" />
+        <xs:attribute name="isDynamic" type="xs:boolean" use="optional" default="false" />
+        <xs:attribute name="countFieldRef" type="UuidType" use="optional" />
+        <xs:attribute name="isAutoSizeIndicator" type="xs:boolean" use="optional" default="false" />
+        <xs:attribute name="autoIndicatorFor" type="UuidType" use="optional" />
+    </xs:complexType>
+
+    <xs:complexType name="SpareType">
+        <xs:attribute name="name" type="xs:string" use="optional" />
+        <xs:attribute name="size" type="xs:positiveInteger" use="required" />
+    </xs:complexType>
+
+    <xs:complexType name="EnumValuesType">
+        <xs:sequence>
+            <xs:element name="Value" maxOccurs="unbounded">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="Description" type="xs:string" minOccurs="0" />
+                    </xs:sequence>
+                    <xs:attribute name="name" type="xs:string" use="required" />
+                    <xs:attribute name="value" type="xs:string" use="required" />
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- ===== Protocols ===== -->
+    <xs:complexType name="ProtocolsType">
+        <xs:sequence>
+            <xs:element name="Protocol" type="ProtocolType" maxOccurs="unbounded" />
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="ProtocolType">
+        <xs:sequence>
+            <xs:element name="Description" type="xs:string" minOccurs="0" />
+            <xs:element name="Framing" type="FramingType" />
+            <xs:element name="Header" type="HeaderType" minOccurs="0" />
+            <xs:element name="Integrity" type="IntegrityType" minOccurs="0" />
+            <xs:element name="Addressing" type="AddressingType" minOccurs="0" />
+        </xs:sequence>
+        <xs:attribute name="id" type="UuidType" use="required" />
+        <xs:attribute name="name" type="xs:string" use="required" />
+    </xs:complexType>
+
+    <xs:complexType name="FramingType">
+        <xs:sequence>
+            <xs:element name="StartMarker" type="MarkerType" />
+            <xs:element name="EndMarker" type="MarkerType" />
+            <xs:element name="ByteStuffing" type="ByteStuffingType" />
+            <xs:element name="Padding" type="HexType" minOccurs="0" />
+            <xs:element name="Endianness" type="EndiannessType" />
+            <xs:element name="MaxPayloadSize" type="xs:positiveInteger" minOccurs="0" />
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="MarkerType">
+        <xs:sequence>
+            <xs:element name="Value" type="HexType" minOccurs="0" />
+        </xs:sequence>
+        <xs:attribute name="enabled" type="xs:boolean" use="required" />
+    </xs:complexType>
+
+    <xs:complexType name="ByteStuffingType">
+        <xs:sequence>
+            <xs:element name="EscapeByte" type="HexType" minOccurs="0" />
+            <xs:element name="Mask" type="HexType" minOccurs="0" />
+        </xs:sequence>
+        <xs:attribute name="enabled" type="xs:boolean" use="required" />
+    </xs:complexType>
+
+    <xs:complexType name="HeaderType">
+        <xs:choice maxOccurs="unbounded" minOccurs="0">
+            <xs:element name="Field" type="FieldType" />
+            <xs:element name="Spare" type="SpareType" />
+        </xs:choice>
+    </xs:complexType>
+
+    <xs:complexType name="IntegrityType">
+        <xs:sequence>
+            <xs:element name="Scope" type="IntegrityScopeType" />
+            <xs:element name="Position" type="IntegrityPositionType" />
+            <xs:element name="Algorithm" type="AlgorithmType" />
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="AlgorithmType">
+        <xs:sequence>
+            <xs:element name="Type" type="AlgorithmTypeEnum" />
+            <xs:element name="Bits" type="xs:positiveInteger" minOccurs="0" />
+            <xs:element name="Polynomial" type="HexType" minOccurs="0" />
+            <xs:element name="InitValue" type="HexType" minOccurs="0" />
+            <xs:element name="XorOut" type="HexType" minOccurs="0" />
+            <xs:element name="Name" type="xs:string" minOccurs="0" />
+            <xs:element name="Expression" type="xs:string" minOccurs="0" />
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="AddressingType">
+        <xs:sequence>
+            <xs:element name="BroadcastId" type="HexType" minOccurs="0" />
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- ===== Sides ===== -->
+    <xs:complexType name="SidesType">
+        <xs:sequence>
+            <xs:element name="Side" type="SideType" maxOccurs="unbounded" />
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="SideType">
+        <xs:sequence>
+            <xs:element name="Description" type="xs:string" minOccurs="0" />
+            <xs:element name="Type" type="SideTypeEnum" />
+            <xs:element name="Address" type="HexType" />
+        </xs:sequence>
+        <xs:attribute name="id" type="UuidType" use="required" />
+        <xs:attribute name="name" type="xs:string" use="required" />
+    </xs:complexType>
+
+    <!-- ===== Enums ===== -->
+    <xs:complexType name="EnumsType">
+        <xs:sequence>
+            <xs:element name="Enum" type="EnumDefType" maxOccurs="unbounded" />
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="EnumDefType">
+        <xs:sequence>
+            <xs:element name="Description" type="xs:string" minOccurs="0" />
+            <xs:element name="Value" maxOccurs="unbounded">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="Description" type="xs:string" minOccurs="0" />
+                    </xs:sequence>
+                    <xs:attribute name="name" type="xs:string" use="required" />
+                    <xs:attribute name="value" type="xs:integer" use="required" />
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="id" type="UuidType" use="required" />
+        <xs:attribute name="name" type="xs:string" use="required" />
+        <xs:attribute name="size" type="xs:positiveInteger" use="required" />
+    </xs:complexType>
+
+    <!-- ===== Structs ===== -->
+    <xs:complexType name="StructsType">
+        <xs:sequence>
+            <xs:element name="Struct" type="StructType" maxOccurs="unbounded" />
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="StructType">
+        <xs:sequence>
+            <xs:element name="Description" type="xs:string" minOccurs="0" />
+            <xs:choice maxOccurs="unbounded" minOccurs="0">
+                <xs:element name="Field" type="FieldType" />
+                <xs:element name="Spare" type="SpareType" />
+            </xs:choice>
+        </xs:sequence>
+        <xs:attribute name="id" type="UuidType" use="required" />
+        <xs:attribute name="name" type="xs:string" use="required" />
+    </xs:complexType>
+
+    <!-- ===== Messages ===== -->
+    <xs:complexType name="MessagesType">
+        <xs:sequence>
+            <xs:element name="Message" type="MessageType" maxOccurs="unbounded" />
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="MessageType">
+        <xs:sequence>
+            <xs:element name="Description" type="xs:string" minOccurs="0" />
+            <xs:element name="Source" type="RefType" />
+            <xs:element name="Destination" type="RefType" />
+            <xs:element name="MessageId" type="HexType" />
+            <xs:element name="Protocol" type="RefType" />
+            <xs:element name="Payload" type="RefType" minOccurs="0" />
+            <xs:element name="Response" type="RefType" minOccurs="0" />
+        </xs:sequence>
+        <xs:attribute name="id" type="UuidType" use="required" />
+        <xs:attribute name="name" type="xs:string" use="required" />
+    </xs:complexType>
+
+    <xs:complexType name="RefType">
+        <xs:attribute name="ref" type="UuidType" use="required" />
+    </xs:complexType>
+
+</xs:schema>

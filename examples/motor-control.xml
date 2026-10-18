@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TAL schemaVersion="1.0">
+  <Metadata>
+    <Name>MotorControl</Name>
+    <Version major="1" minor="0" patch="0" />
+    <Description>STM32 motor kontrol protokolü</Description>
+    <Author>yildizbasak</Author>
+    <CreatedAt>2026-10-18T10:00:00Z</CreatedAt>
+    <LastModifiedAt>2026-10-18T14:30:00Z</LastModifiedAt>
+  </Metadata>
+
+  <Protocols>
+    <Protocol id="11111111-1111-1111-1111-111111111111" name="MainProtocol">
+      <Description>Ana motor kontrol protokolü</Description>
+      <Framing>
+        <StartMarker enabled="true">
+          <Value>0xAA55</Value>
+        </StartMarker>
+        <EndMarker enabled="false" />
+        <ByteStuffing enabled="false" />
+        <Padding>0x00</Padding>
+        <Endianness>Big</Endianness>
+        <MaxPayloadSize>256</MaxPayloadSize>
+      </Framing>
+      <Header>
+        <Field id="aaaaaaaa-0000-0000-0000-000000000001" name="Sync" type="u16" size="16"
+          role="sync" required="true" />
+        <Field id="aaaaaaaa-0000-0000-0000-000000000002" name="SenderId" type="u8" size="8"
+          role="sender" required="true" />
+        <Field id="aaaaaaaa-0000-0000-0000-000000000003" name="DestId" type="u8" size="8"
+          role="destination" required="true" />
+        <Field id="aaaaaaaa-0000-0000-0000-000000000004" name="MessageId" type="u8" size="8"
+          role="messageId" required="true" />
+        <Field id="aaaaaaaa-0000-0000-0000-000000000005" name="MessageType" type="u8" size="8"
+          role="messageType" required="true" />
+        <Field id="aaaaaaaa-0000-0000-0000-000000000006" name="PayloadSize" type="u16" size="16"
+          role="payloadSize" required="true" />
+        <Spare size="16" />
+      </Header>
+      <Integrity>
+        <Scope>HeaderAndPayload</Scope>
+        <Position>afterPayload</Position>
+        <Algorithm>
+          <Type>crc</Type>
+          <Bits>16</Bits>
+          <Polynomial>0x1021</Polynomial>
+          <InitValue>0xFFFF</InitValue>
+          <XorOut>0x0000</XorOut>
+        </Algorithm>
+      </Integrity>
+      <Addressing>
+        <BroadcastId>0xFF</BroadcastId>
+      </Addressing>
+    </Protocol>
+  </Protocols>
+
+  <Sides>
+    <Side id="22222222-2222-2222-2222-222222222222" name="WindowsPC">
+      <Description>Ana kontrol birimi</Description>
+      <Type>master</Type>
+      <Address>0x00</Address>
+    </Side>
+    <Side id="33333333-3333-3333-3333-333333333333" name="LinuxBoard">
+      <Type>slave</Type>
+      <Address>0x01</Address>
+    </Side>
+  </Sides>
+
+  <Enums>
+    <Enum id="44444444-4444-4444-4444-444444444444" name="MotorDirection" size="8">
+      <Description>Motor dönüş yönü</Description>
+      <Value name="FORWARD" value="0">
+        <Description>İleri</Description>
+      </Value>
+      <Value name="BACKWARD" value="1" />
+      <Value name="STOP" value="2" />
+    </Enum>
+  </Enums>
+
+  <Structs>
+    <Struct id="55555555-5555-5555-5555-555555555555" name="MotorCommand">
+      <Description>Motor komut yapısı</Description>
+      <Field id="bbbbbbbb-0000-0000-0000-000000000001" name="speed" type="u16" size="16" />
+      <Field id="bbbbbbbb-0000-0000-0000-000000000002" name="direction" type="enum"
+        ref="44444444-4444-4444-4444-444444444444" size="8" />
+      <Field id="bbbbbbbb-0000-0000-0000-000000000003" name="duration" type="u32" size="32" />
+    </Struct>
+    <Struct id="66666666-6666-6666-6666-666666666666" name="AckPayload">
+      <Field id="bbbbbbbb-0000-0000-0000-000000000004" name="status" type="u8" size="8" />
+      <Spare size="8" />
+    </Struct>
+  </Structs>
+
+  <Messages>
+    <Message id="77777777-7777-7777-7777-777777777777" name="StartMotor">
+      <Description>Motoru başlatır</Description>
+      <Source ref="22222222-2222-2222-2222-222222222222" />
+      <Destination ref="33333333-3333-3333-3333-333333333333" />
+      <MessageId>0x01</MessageId>
+      <Protocol ref="11111111-1111-1111-1111-111111111111" />
+      <Payload ref="55555555-5555-5555-5555-555555555555" />
+      <Response ref="88888888-8888-8888-8888-888888888888" />
+    </Message>
+    <Message id="88888888-8888-8888-8888-888888888888" name="StartMotorAck">
+      <Description>Motor başlatma yanıtı</Description>
+      <Source ref="33333333-3333-3333-3333-333333333333" />
+      <Destination ref="22222222-2222-2222-2222-222222222222" />
+      <MessageId>0x81</MessageId>
+      <Protocol ref="11111111-1111-1111-1111-111111111111" />
+      <Payload ref="66666666-6666-6666-6666-666666666666" />
+    </Message>
+  </Messages>
+</TAL>
