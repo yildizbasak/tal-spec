@@ -307,14 +307,18 @@ function calculateTypeSize(typeIdStr, visited = new Set()) {
     if (visited.has(refObj.id)) return 0; 
     visited.add(refObj.id);
 
-    if (parts[0] === 'enum') return refObj.size;
-    if (parts[0] === 'struct') {
-        return refObj.fields.reduce((acc, f) => {
+    let total = 0;
+    if (parts[0] === 'enum') {
+        total = refObj.size;
+    } else if (parts[0] === 'struct') {
+        total = refObj.fields.reduce((acc, f) => {
             if (f.typeId === 'primitive') return acc + f.size;
             return acc + calculateTypeSize(f.typeId, visited);
         }, 0);
     }
-    return 0;
+
+    visited.delete(refObj.id);
+    return total;
 }
 
 function syncAllSizes() {
@@ -589,6 +593,10 @@ function loadView(type, id, updateHashFlag = true) {
         document.getElementById('settings-sidebar').style.display = 'none';
         document.getElementById('settings-content').style.display = 'none';
         document.getElementById('sidebar-left').style.display = 'flex';
+        currentViewType = null;
+        currentViewId = null;
+        selectedItemIndex = null;
+        if (updateHashFlag) updateHash('explorer');
         return;
     }
     
@@ -614,7 +622,7 @@ function loadView(type, id, updateHashFlag = true) {
         document.getElementById('settings-sidebar').style.display = 'flex';
         document.getElementById('settings-content').style.display = 'block';
         
-        if (!currentSettingsTab) {
+        if (currentSettingsTab !== 'protocol') {
             switchSettingsTab('protocol', false);
         }
         
@@ -890,10 +898,11 @@ function dropField(e, targetIndex) {
 
     obj.fields = obj.fields.filter(f => !f.isSpare);
 
-    const newFromIndex = obj.fields.indexOf(draggedField);
-    const newTargetIndex = obj.fields.indexOf(targetField);
+    let newFromIndex = obj.fields.indexOf(draggedField);
+    let newTargetIndex = obj.fields.indexOf(targetField);
 
     obj.fields.splice(newFromIndex, 1);
+    if (newFromIndex < newTargetIndex) newTargetIndex--;
     obj.fields.splice(newTargetIndex, 0, draggedField);
 
     rebuildSpares(obj);
@@ -1297,43 +1306,52 @@ function saveComment() {
     if (currentViewType !== 'enum') renderMemoryMap(obj);
 }
 
+function escapeXml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
 function generateXML() {
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<TAL_Protocol>\n';
 
-    xml += `  <Protocol crcType="${TAL.protocol.crcType}" crcSize="${TAL.protocol.crcSize}">\n`;
+    xml += `  <Protocol crcType="${escapeXml(TAL.protocol.crcType)}" crcSize="${TAL.protocol.crcSize}">\n`;
     TAL.protocol.fields.forEach(f => {
         let typeName = f.typeId === 'primitive' ? 'primitive' : getCustomTypeName(f.typeId);
-        let isArrayAttr = f.isArray ? ` isArray="true" countField="${getCountFieldName(TAL.protocol, f.countFieldId)}"` : '';
-        xml += `    <Field name="${f.name}" type="${typeName}" size="${f.size}" spare="${f.isSpare}"${isArrayAttr} comment="${f.comment}"/>\n`;
+        let isArrayAttr = f.isArray ? ` isArray="true" countField="${escapeXml(getCountFieldName(TAL.protocol, f.countFieldId))}"` : '';
+        xml += `    <Field name="${escapeXml(f.name)}" type="${escapeXml(typeName)}" size="${f.size}" spare="${f.isSpare}"${isArrayAttr} comment="${escapeXml(f.comment)}"/>\n`;
     });
     xml += `  </Protocol>\n\n`;
 
     TAL.enums.forEach(e => {
-        xml += `  <Enum name="${e.name}" size="${e.size}">\n`;
+        xml += `  <Enum name="${escapeXml(e.name)}" size="${e.size}">\n`;
         e.items.forEach(i => {
-            xml += `    <Element name="${i.name}" value="${i.value}" comment="${i.comment}"/>\n`;
+            xml += `    <Element name="${escapeXml(i.name)}" value="${escapeXml(i.value)}" comment="${escapeXml(i.comment)}"/>\n`;
         });
         xml += `  </Enum>\n`;
     });
 
     TAL.structs.forEach(s => {
-        xml += `  <Struct name="${s.name}">\n`;
+        xml += `  <Struct name="${escapeXml(s.name)}">\n`;
         s.fields.forEach(f => {
             let typeName = f.typeId === 'primitive' ? 'primitive' : getCustomTypeName(f.typeId);
-            let isArrayAttr = f.isArray ? ` isArray="true" countField="${getCountFieldName(s, f.countFieldId)}"` : '';
-            xml += `    <Field name="${f.name}" type="${typeName}" size="${f.size}" spare="${f.isSpare}"${isArrayAttr} comment="${f.comment}"/>\n`;
+            let isArrayAttr = f.isArray ? ` isArray="true" countField="${escapeXml(getCountFieldName(s, f.countFieldId))}"` : '';
+            xml += `    <Field name="${escapeXml(f.name)}" type="${escapeXml(typeName)}" size="${f.size}" spare="${f.isSpare}"${isArrayAttr} comment="${escapeXml(f.comment)}"/>\n`;
         });
         xml += `  </Struct>\n`;
     });
 
     TAL.messages.forEach(m => {
-        xml += `  <Message name="${m.name}">\n`;
+        xml += `  <Message name="${escapeXml(m.name)}">\n`;
         m.fields.forEach(f => {
             let typeName = f.typeId === 'primitive' ? 'primitive' : getCustomTypeName(f.typeId);
-            let isArrayAttr = f.isArray ? ` isArray="true" countField="${getCountFieldName(m, f.countFieldId)}"` : '';
+            let isArrayAttr = f.isArray ? ` isArray="true" countField="${escapeXml(getCountFieldName(m, f.countFieldId))}"` : '';
             let isHeaderAttr = f.isHeader ? ` isHeader="true"` : '';
             let isCrcAttr = f.isCrc ? ` isCrc="true"` : '';
-            xml += `    <Field name="${f.name}" type="${typeName}" size="${f.size}" spare="${f.isSpare}"${isArrayAttr}${isHeaderAttr}${isCrcAttr} comment="${f.comment}"/>\n`;
+            xml += `    <Field name="${escapeXml(f.name)}" type="${escapeXml(typeName)}" size="${f.size}" spare="${f.isSpare}"${isArrayAttr}${isHeaderAttr}${isCrcAttr} comment="${escapeXml(f.comment)}"/>\n`;
         });
         xml += `  </Message>\n`;
     });
