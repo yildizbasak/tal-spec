@@ -8,16 +8,7 @@ const TAL = {
         crcSize: 0, 
         comment: '',
         config: {
-            startData: {
-                enabled: false,
-                value: '0xAAAAAAAA',
-                size: 4
-            },
-            endData: {
-                enabled: false,
-                value: '0x55555555',
-                size: 4
-            },
+            framing: TALFraming.defaultFraming(),
             header: {
                 senderAddress: '0x00',
                 receiverAddress: '0xFF',
@@ -96,8 +87,7 @@ function showExplorer(updateHashFlag = true) {
     document.getElementById('enum-toolbar').style.display = 'none';
     document.getElementById('struct-toolbar').style.display = 'none';
     document.getElementById('protocol-crc-toolbar').style.display = 'none';
-    document.getElementById('protocol-startdata-toolbar').style.display = 'none';
-    document.getElementById('protocol-enddata-toolbar').style.display = 'none';
+    document.getElementById('protocol-framing-toolbar').style.display = 'none';
     document.getElementById('protocol-header-toolbar').style.display = 'none';
     document.getElementById('enum-view-container').style.display = 'none';
     document.getElementById('memory-map-container').style.display = 'none';
@@ -136,6 +126,7 @@ function showPrompt(message, callback, defaultVal = '') {
     inp.style.display = 'block';
     inp.value = defaultVal;
     document.getElementById('modal-select').style.display = 'none';
+    document.getElementById('modal-cancel').style.display = 'block';
     _modalCallback = () => callback(inp.value.trim());
     _modalCancelCallback = () => callback(null);
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -148,6 +139,7 @@ function showSelect(message, options, callback) {
     const sel = document.getElementById('modal-select');
     sel.style.display = 'block';
     sel.innerHTML = options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+    document.getElementById('modal-cancel').style.display = 'block';
     _modalCallback = () => callback(sel.value);
     _modalCancelCallback = () => callback(null);
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -157,8 +149,19 @@ function showConfirm(message, callback) {
     document.getElementById('modal-message').innerText = message;
     document.getElementById('modal-input').style.display = 'none';
     document.getElementById('modal-select').style.display = 'none';
+    document.getElementById('modal-cancel').style.display = 'block';
     _modalCallback = () => callback(true);
     _modalCancelCallback = () => callback(false);
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+function showAlert(message) {
+    document.getElementById('modal-message').innerText = message;
+    document.getElementById('modal-input').style.display = 'none';
+    document.getElementById('modal-select').style.display = 'none';
+    document.getElementById('modal-cancel').style.display = 'none';
+    _modalCallback = () => { document.getElementById('modal-cancel').style.display = 'block'; };
+    _modalCancelCallback = () => { document.getElementById('modal-cancel').style.display = 'block'; };
     document.getElementById('modal-overlay').style.display = 'flex';
 }
 
@@ -383,19 +386,99 @@ function changeCrc() {
     updateByteTable();
 }
 
-function changeStartData() {
-    TAL.protocol.config.startData.enabled = document.getElementById('startDataEnabled').checked;
-    TAL.protocol.config.startData.value = document.getElementById('startDataValue').value;
-    TAL.protocol.config.startData.size = parseInt(document.getElementById('startDataSize').value);
-    syncProtocolToMessages();
-    updateByteTable();
+function readFramingFromForm() {
+    return TALFraming.normalize({
+        startMarker: {
+            enabled: document.getElementById('framingStartEnabled').checked,
+            value: document.getElementById('framingStartValue').value.trim()
+        },
+        endMarker: {
+            enabled: document.getElementById('framingEndEnabled').checked,
+            value: document.getElementById('framingEndValue').value.trim()
+        },
+        byteStuffing: {
+            enabled: document.getElementById('framingStuffingEnabled').checked,
+            escapeByte: document.getElementById('framingEscapeByte').value.trim(),
+            mask: document.getElementById('framingMask').value.trim()
+        },
+        padding: document.getElementById('framingPadding').value.trim(),
+        endianness: document.getElementById('framingEndianness').value,
+        maxPayloadSize: document.getElementById('framingMaxPayload').value.trim()
+    });
 }
 
-function changeEndData() {
-    TAL.protocol.config.endData.enabled = document.getElementById('endDataEnabled').checked;
-    TAL.protocol.config.endData.value = document.getElementById('endDataValue').value;
-    TAL.protocol.config.endData.size = parseInt(document.getElementById('endDataSize').value);
-    syncProtocolToMessages();
+function applyFramingToForm() {
+    const f = TAL.protocol.config.framing;
+    document.getElementById('framingStartEnabled').checked = f.startMarker.enabled;
+    document.getElementById('framingStartValue').value = f.startMarker.value;
+    document.getElementById('framingEndEnabled').checked = f.endMarker.enabled;
+    document.getElementById('framingEndValue').value = f.endMarker.value;
+    document.getElementById('framingStuffingEnabled').checked = f.byteStuffing.enabled;
+    document.getElementById('framingEscapeByte').value = f.byteStuffing.escapeByte;
+    document.getElementById('framingMask').value = f.byteStuffing.mask;
+    document.getElementById('framingPadding').value = f.padding;
+    document.getElementById('framingEndianness').value = f.endianness;
+    document.getElementById('framingMaxPayload').value = f.maxPayloadSize;
+    toggleFramingInputs();
+}
+
+function toggleFramingInputs() {
+    setFramingInputState('framingStartValue', document.getElementById('framingStartEnabled').checked);
+    setFramingInputState('framingEndValue', document.getElementById('framingEndEnabled').checked);
+    setFramingInputState('framingEscapeByte', document.getElementById('framingStuffingEnabled').checked);
+    setFramingInputState('framingMask', document.getElementById('framingStuffingEnabled').checked);
+}
+
+function setFramingInputState(id, enabled) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !enabled;
+    el.classList.toggle('framing-disabled', !enabled);
+}
+
+function renderFramingErrors(errors) {
+    errors = errors || [];
+    const box = document.getElementById('framing-errors');
+    if (box) {
+        if (errors.length === 0) {
+            box.style.display = 'none';
+            box.innerHTML = '';
+        } else {
+            box.style.display = 'block';
+            box.innerHTML = '<strong>Çerçeveleme hataları:</strong><br>' +
+                errors.map(e => '• ' + escapeXml(e)).join('<br>');
+        }
+    }
+
+    syncFieldError('err-framing-start', 'framingStartValue', errors, ['Start Marker']);
+    syncFieldError('err-framing-end', 'framingEndValue', errors, ['End Marker']);
+    syncFieldError('err-framing-escape', 'framingEscapeByte', errors, ['Escape Byte']);
+    syncFieldError('err-framing-mask', 'framingMask', errors, ['Stuffing Mask']);
+    syncFieldError('err-framing-padding', 'framingPadding', errors, ['Padding']);
+    syncFieldError('err-framing-endianness', 'framingEndianness', errors, ['Endianness']);
+    syncFieldError('err-framing-maxpayload', 'framingMaxPayload', errors, ['Max Payload Size']);
+}
+
+function syncFieldError(spanId, inputId, errors, keywords) {
+    const span = document.getElementById(spanId);
+    const input = document.getElementById(inputId);
+    if (!span || !input) return;
+    const message = errors.find(e => keywords.some(k => e.indexOf(k) !== -1));
+    if (message) {
+        span.innerText = message;
+        span.classList.add('visible');
+        input.classList.add('framing-invalid');
+    } else {
+        span.innerText = '';
+        span.classList.remove('visible');
+        input.classList.remove('framing-invalid');
+    }
+}
+
+function changeFraming() {
+    toggleFramingInputs();
+    TAL.protocol.config.framing = readFramingFromForm();
+    renderFramingErrors(TALFraming.validate(TAL.protocol.config.framing));
     updateByteTable();
 }
 
@@ -451,18 +534,20 @@ function updateByteTable() {
     
     let totalBytes = 0;
     const config = TAL.protocol.config;
+    const framing = config.framing;
 
-    if (config.startData.enabled) {
+    if (framing.startMarker.enabled) {
+        const size = TALFraming.hexByteLength(framing.startMarker.value);
         tbody.innerHTML += `
             <tr>
-                <td>Start Data</td>
+                <td>Start Marker</td>
                 <td>Hex/Bytes</td>
-                <td style="font-family: monospace; color: #a5d6ff;">${config.startData.value}</td>
-                <td style="text-align: right;">${config.startData.size}</td>
+                <td style="font-family: monospace; color: #a5d6ff;">${escapeXml(framing.startMarker.value)}</td>
+                <td style="text-align: right;">${size}</td>
                 <td style="text-align: center;"><span class="status-badge status-active">Aktif</span></td>
             </tr>
         `;
-        totalBytes += config.startData.size;
+        totalBytes += size;
     }
     
     const headerFields = [
@@ -495,19 +580,48 @@ function updateByteTable() {
         }
     });
     
-    // End Data
-    if (config.endData.enabled) {
+    // End Marker
+    if (framing.endMarker.enabled) {
+        const size = TALFraming.hexByteLength(framing.endMarker.value);
         tbody.innerHTML += `
            <tr>
-                <td>End Data</td>
+                <td>End Marker</td>
                 <td>Hex/Bytes</td>
-                <td style="font-family: monospace; color: #a5d6ff;">${config.endData.value}</td>
-                <td style="text-align: right;">${config.endData.size}</td>
+                <td style="font-family: monospace; color: #a5d6ff;">${escapeXml(framing.endMarker.value)}</td>
+                <td style="text-align: right;">${size}</td>
                 <td style="text-align: center;"><span class="status-badge status-active">Aktif</span></td>
             </tr>
         `;
-        totalBytes += config.endData.size;
+        totalBytes += size;
     }
+
+    // Framing settings (no fixed byte cost on the wire)
+    const framingSettings = [
+        {
+            name: 'Byte Stuffing',
+            hex: framing.byteStuffing.enabled
+                ? `Esc ${framing.byteStuffing.escapeByte} / Mask ${framing.byteStuffing.mask}`
+                : '-',
+            enabled: framing.byteStuffing.enabled
+        },
+        { name: 'Padding', hex: framing.padding || '-', enabled: framing.padding !== '' },
+        { name: 'Endianness', hex: framing.endianness || '-', enabled: framing.endianness !== '' },
+        { name: 'Max Payload Size', hex: framing.maxPayloadSize || '-', enabled: framing.maxPayloadSize !== '' }
+    ];
+
+    framingSettings.forEach(field => {
+        const statusClass = field.enabled ? 'status-active' : 'status-inactive';
+        const statusText = field.enabled ? 'Aktif' : 'Pasif';
+        tbody.innerHTML += `
+            <tr>
+                <td>${field.name}</td>
+                <td>Ayar</td>
+                <td style="font-family: monospace; color: #a5d6ff;">${escapeXml(field.hex)}</td>
+                <td style="text-align: right;">-</td>
+                <td style="text-align: center;"><span class="status-badge ${statusClass}">${statusText}</span></td>
+            </tr>
+        `;
+    });
     
     // CRC
     if (TAL.protocol.crcSize > 0) {
@@ -583,8 +697,7 @@ function loadView(type, id, updateHashFlag = true) {
         document.getElementById('enum-toolbar').style.display = 'none';
         document.getElementById('struct-toolbar').style.display = 'none';
         document.getElementById('protocol-crc-toolbar').style.display = 'none';
-        document.getElementById('protocol-startdata-toolbar').style.display = 'none';
-        document.getElementById('protocol-enddata-toolbar').style.display = 'none';
+        document.getElementById('protocol-framing-toolbar').style.display = 'none';
         document.getElementById('protocol-header-toolbar').style.display = 'none';
         document.getElementById('enum-view-container').style.display = 'none';
         document.getElementById('memory-map-container').style.display = 'none';
@@ -611,8 +724,7 @@ function loadView(type, id, updateHashFlag = true) {
     
     document.getElementById('struct-toolbar').style.display = !isEnum ? 'flex' : 'none';
     document.getElementById('protocol-crc-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
-    document.getElementById('protocol-startdata-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
-    document.getElementById('protocol-enddata-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
+    document.getElementById('protocol-framing-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
     document.getElementById('protocol-header-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
     document.getElementById('memory-map-container').style.display = !isEnum ? 'block' : 'none';
 
@@ -629,13 +741,11 @@ function loadView(type, id, updateHashFlag = true) {
         const selectEl = document.getElementById('protocolCrcSelect');
         if (selectEl) selectEl.value = `${TAL.protocol.crcType}_${TAL.protocol.crcSize}`;
         
-        document.getElementById('startDataEnabled').checked = TAL.protocol.config.startData.enabled;
-        document.getElementById('startDataValue').value = TAL.protocol.config.startData.value;
-        document.getElementById('startDataSize').value = TAL.protocol.config.startData.size;
-        
-        document.getElementById('endDataEnabled').checked = TAL.protocol.config.endData.enabled;
-        document.getElementById('endDataValue').value = TAL.protocol.config.endData.value;
-        document.getElementById('endDataSize').value = TAL.protocol.config.endData.size;
+        if (!TAL.protocol.config.framing) {
+            TAL.protocol.config.framing = TALFraming.defaultFraming();
+        }
+        applyFramingToForm();
+        renderFramingErrors(TALFraming.validate(TAL.protocol.config.framing));
         
         document.getElementById('headerSenderAddress').value = TAL.protocol.config.header.senderAddress;
         document.getElementById('headerReceiverAddress').value = TAL.protocol.config.header.receiverAddress;
@@ -1319,6 +1429,11 @@ function generateXML() {
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<TAL_Protocol>\n';
 
     xml += `  <Protocol crcType="${escapeXml(TAL.protocol.crcType)}" crcSize="${TAL.protocol.crcSize}">\n`;
+    if (!TAL.protocol.config.framing) {
+        TAL.protocol.config.framing = TALFraming.defaultFraming();
+    }
+    const framingXml = TALFraming.serialize(TAL.protocol.config.framing, '  ');
+    xml += framingXml.split('\n').map(line => '    ' + line).join('\n') + '\n';
     TAL.protocol.fields.forEach(f => {
         let typeName = f.typeId === 'primitive' ? 'primitive' : getCustomTypeName(f.typeId);
         let isArrayAttr = f.isArray ? ` isArray="true" countField="${escapeXml(getCountFieldName(TAL.protocol, f.countFieldId))}"` : '';
@@ -1361,6 +1476,20 @@ function generateXML() {
 }
 
 function downloadXML() {
+    if (!TAL.protocol.config.framing) {
+        TAL.protocol.config.framing = TALFraming.defaultFraming();
+    }
+    const framingErrors = TALFraming.validate(TAL.protocol.config.framing);
+    if (framingErrors.length > 0) {
+        renderFramingErrors(framingErrors);
+        if (currentViewType !== 'protocol') {
+            loadView('protocol', 'protocol');
+        }
+        showAlert('Kaydedilemedi. Lütfen çerçeveleme ayarlarını düzeltin:\n\n' +
+            framingErrors.map(e => '• ' + e).join('\n'));
+        return;
+    }
+
     generateXML();
     
     const xmlContent = document.getElementById('xmlOutput').value;
@@ -1399,16 +1528,7 @@ function loadXML(event) {
             crcSize: 0, 
             comment: '',
             config: {
-                startData: {
-                    enabled: false,
-                    value: '0xAAAAAAAA',
-                    size: 4
-                },
-                endData: {
-                    enabled: false,
-                    value: '0x55555555',
-                    size: 4
-                },
+                framing: TALFraming.defaultFraming(),
                 header: {
                     senderAddress: '0x00',
                     receiverAddress: '0xFF',
@@ -1433,6 +1553,7 @@ function loadXML(event) {
         if (protocolNode) {
             TAL.protocol.crcType = protocolNode.getAttribute("crcType") || 'NONE';
             TAL.protocol.crcSize = parseInt(protocolNode.getAttribute("crcSize") || 0);
+            TAL.protocol.config.framing = TALFraming.parse(xmlText);
             
             const fieldNodes = protocolNode.getElementsByTagName("Field");
             for (let j = 0; j < fieldNodes.length; j++) {

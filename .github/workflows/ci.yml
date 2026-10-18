@@ -13,11 +13,16 @@ jobs:
       - name: Kodu Çek (Checkout)
         uses: actions/checkout@v4
 
+      - name: Node.js Kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Lint
-        run: echo "Linting işlemi yapılıyor..."
+        run: node --check script.js && node --check framing.js
         
       - name: Test
-        run: echo "Testler çalıştırılıyor..."
+        run: node --test tests/*.test.js
         
       - name: Build
         run: echo "Build işlemi yapılıyor..."
