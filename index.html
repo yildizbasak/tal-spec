@@ -66,33 +66,82 @@
 
             <div id="settings-content" style="display: none; padding: 20px;">
                 <div id="protocol-settings-panel" style="display: none;">
-                    <div id="protocol-startdata-toolbar" class="toolbar" style="border-top: 1px solid #333; padding-top: 10px; margin-top: 10px;">
-        <label style="color:white; margin-right: 10px; align-self: center; display: flex; align-items: center; gap: 6px;">
-            <input type="checkbox" id="startDataEnabled" onchange="changeStartData()" style="width: auto; margin: 0;">
-            Start Data (Mesaj Başı):
-        </label>
-        <input type="text" id="startDataValue" value="0xAAAAAAAA" onchange="changeStartData()" style="width: 150px; margin-bottom: 0;">
-        <select id="startDataSize" onchange="changeStartData()" style="width: auto; margin-bottom: 0;">
-            <option value="1">1 byte</option>
-            <option value="2">2 byte</option>
-            <option value="4">4 byte</option>
-            <option value="8">8 byte</option>
-        </select>
-    </div>
+                    <div id="protocol-framing-toolbar" class="toolbar" style="border-top: 1px solid #333; padding-top: 15px; margin-top: 10px; flex-direction: column; align-items: stretch;">
+                        <h4 style="color: #e67e22; margin: 0 0 15px 0; font-size: 14px; border-bottom: 1px solid #555; padding-bottom: 8px;">Paket Çerçeveleme (Framing)</h4>
 
-                    <div id="protocol-enddata-toolbar" class="toolbar" style="border-top: 1px solid #333; padding-top: 10px; margin-top: 10px;">
-        <label style="color:white; margin-right: 10px; align-self: center; display: flex; align-items: center; gap: 6px;">
-            <input type="checkbox" id="endDataEnabled" onchange="changeEndData()" style="width: auto; margin: 0;">
-            End Data (Mesaj Sonu):
-        </label>
-        <input type="text" id="endDataValue" value="0x55555555" onchange="changeEndData()" style="width: 150px; margin-bottom: 0;">
-        <select id="endDataSize" onchange="changeEndData()" style="width: auto; margin-bottom: 0;">
-            <option value="1">1 byte</option>
-            <option value="2">2 byte</option>
-            <option value="4">4 byte</option>
-            <option value="8">8 byte</option>
-        </select>
-    </div>
+                        <div id="framing-errors" style="display: none; background: #4a1f1f; border: 1px solid #e74c3c; border-radius: 4px; padding: 10px 12px; margin-bottom: 12px; color: #ffb3b3; font-size: 12px; line-height: 1.5;"></div>
+
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px;">
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;" title="Mesajın başlangıcını belirten bayrak (1-16 byte hex).">
+                                    <input type="checkbox" id="framingStartEnabled" onchange="changeFraming()" style="width: auto; margin: 0;">
+                                    Start Marker (Mesaj Başı)
+                                </label>
+                                <input type="text" id="framingStartValue" placeholder="0xAA55" oninput="changeFraming()" style="width: 100%; margin-bottom: 0;">
+                                <span id="err-framing-start" class="framing-error"></span>
+                            </div>
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;" title="Mesajın bitişini belirten bayrak (1-16 byte hex).">
+                                    <input type="checkbox" id="framingEndEnabled" onchange="changeFraming()" style="width: auto; margin: 0;">
+                                    End Marker (Mesaj Sonu)
+                                </label>
+                                <input type="text" id="framingEndValue" placeholder="0xFF00" oninput="changeFraming()" style="width: 100%; margin-bottom: 0;">
+                                <span id="err-framing-end" class="framing-error"></span>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;" title="Özel byte'ların iki byte'a genişletilmesi (SRS §3.3).">
+                                    <input type="checkbox" id="framingStuffingEnabled" onchange="changeFraming()" style="width: auto; margin: 0;">
+                                    Byte Stuffing
+                                </label>
+                                <span style="color: #777; font-size: 11px;">Açıkken Escape Byte ve Mask zorunludur.</span>
+                            </div>
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;" title="Kaçış karakteri (tam 1 byte hex).">
+                                    Escape Byte (1 byte)
+                                </label>
+                                <input type="text" id="framingEscapeByte" placeholder="0x7D" oninput="changeFraming()" style="width: 100%; margin-bottom: 0;">
+                                <span id="err-framing-escape" class="framing-error"></span>
+                            </div>
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;" title="Kaçış sonrası uygulanan XOR maskesi (tam 1 byte hex).">
+                                    Stuffing Mask (1 byte)
+                                </label>
+                                <input type="text" id="framingMask" placeholder="0x20" oninput="changeFraming()" style="width: 100%; margin-bottom: 0;">
+                                <span id="err-framing-mask" class="framing-error"></span>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;" title="Boş alanların doldurulacağı byte (tam 1 byte hex).">
+                                    Padding (1 byte)
+                                </label>
+                                <input type="text" id="framingPadding" placeholder="0x00" oninput="changeFraming()" style="width: 100%; margin-bottom: 0;">
+                                <span id="err-framing-padding" class="framing-error"></span>
+                            </div>
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;" title="Çok baytlı verilerin hatta dizilim sırası (SRS §3.5).">
+                                    Endianness <span style="color: #e74c3c; font-weight: bold;">*</span>
+                                </label>
+                                <select id="framingEndianness" onchange="changeFraming()" style="width: 100%; margin-bottom: 0;">
+                                    <option value="">Seçiniz...</option>
+                                    <option value="Big">Big (Network Byte Order)</option>
+                                    <option value="Little">Little</option>
+                                </select>
+                                <span id="err-framing-endianness" class="framing-error"></span>
+                            </div>
+                            <div class="header-field-group">
+                                <label style="color: #ccc; font-size: 12px; display: block; margin-bottom: 4px;" title="Protokol seviyesinde izin verilen maksimum payload boyutu (byte).">
+                                    Max Payload Size (byte)
+                                </label>
+                                <input type="number" id="framingMaxPayload" min="1" placeholder="örn: 256" oninput="changeFraming()" style="width: 100%; margin-bottom: 0;">
+                                <span id="err-framing-maxpayload" class="framing-error"></span>
+                            </div>
+                        </div>
+                    </div>
 
                     <div id="protocol-crc-toolbar" class="toolbar" style="border-top: 1px solid #333; padding-top: 10px; margin-top: 10px;">
                         <label style="color:white; margin-right: 10px; align-self: center;">Checksum / CRC Seçimi (Sona Eklenir):</label>
@@ -291,6 +340,7 @@
             </div>
         </div>
     </div>
+    <script src="framing.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

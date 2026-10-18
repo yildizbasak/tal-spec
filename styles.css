@@ -97,4 +97,10 @@ h3 { margin-bottom: 15px; border-bottom: 1px solid #3c3c3c; padding-bottom: 5px;
 .status-active { background: #28a745; color: white; }
 .status-inactive { background: #6c757d; color: white; }
 .status-partial { background: #ffc107; color: #333; }
-.status-pasif { background: #6c757d; color: white; } 
+.status-pasif { background: #6c757d; color: white; }
+
+/* Framing (Issue #4) */
+.framing-error { display: none; color: #e74c3c; font-size: 11px; margin-top: 4px; }
+.framing-error.visible { display: block; }
+.framing-disabled { opacity: 0.45; }
+input.framing-invalid { border: 2px solid #e74c3c !important; }

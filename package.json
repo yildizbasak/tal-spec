@@ -1,0 +1,10 @@
+{
+  "name": "tal-spec",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TAL (Transmission Abstraction Layer) — browser-based protocol definition tool",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "license": "MIT"
+}
