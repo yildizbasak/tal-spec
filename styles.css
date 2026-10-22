@@ -83,9 +83,27 @@ h3 { margin-bottom: 15px; border-bottom: 1px solid #3c3c3c; padding-bottom: 5px;
 .settings-nav-btn:hover { background: #4a4a4a; border-color: #666; }
 .settings-nav-btn.active { background: #e67e22; color: white; border-color: #e67e22; font-weight: bold; }
 
+.settings-actions { margin-top: auto; padding-top: 18px; border-top: 1px solid #3c3c3c; display: flex; flex-direction: column; gap: 6px; }
+.settings-actions button { margin: 0; text-align: center; }
+
 /* Settings Content */
 #settings-content { background: #1e1e1e; min-height: 100%; }
-#protocol-settings-panel, #message-settings-panel { background: #252526; border-radius: 8px; padding: 20px; border: 1px solid #3c3c3c; }
+#protocol-settings-panel { background: #252526; border-radius: 8px; padding: 20px; border: 1px solid #3c3c3c; }
+.settings-section { width: 100%; }
+.settings-card { background: #2c2c2c; border: 1px solid #3c3c3c; border-radius: 8px; padding: 22px; }
+.settings-card h4 { color: #e67e22; margin: 0 0 10px 0; font-size: 15px; }
+.settings-muted { color: #999; font-size: 12px; line-height: 1.6; margin: 0; }
+.settings-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 18px; }
+.summary-item { background: #1e1e1e; border: 1px solid #3c3c3c; border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.summary-label { color: #858585; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+.summary-value { color: #e67e22; font-size: 16px; font-weight: bold; }
+.summary-value.summary-error { color: #e74c3c; }
+.settings-validation { margin-top: 14px; padding: 10px 12px; border-radius: 4px; background: #1e3a24; color: #8ee6a2; font-size: 12px; }
+.settings-validation.settings-validation-error { background: #4a1f1f; border: 1px solid #e74c3c; color: #ffb3b3; }
+
+#protocol-framing-toolbar, #protocol-header-toolbar { display: block; width: 100%; }
+#protocol-header-toolbar h4 { margin-top: 0; }
+#protocol-crc-toolbar { flex-wrap: wrap; }
 
 /* Byte Table */
 #byte-table tbody tr { border-bottom: 1px solid #3c3c3c; transition: background 0.2s; }
