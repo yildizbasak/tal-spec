@@ -8,25 +8,20 @@ const TAL = {
         crcSize: 0, 
         comment: '',
         config: {
-            framing: TALFraming.defaultFraming(),
-            header: {
-                senderAddress: '0x00',
-                receiverAddress: '0xFF',
-                broadcast: false,
-                messageId: 0,
-                messageType: 'command',
-                messageSize: 0,
-                protocolVersion: '1.0',
-                sequenceNumber: 0,
-                priorityLevel: 'normal',
-                timestamp: false
-            }
+            framing: typeof TALFraming !== 'undefined' ? TALFraming.defaultFraming() : null
         }
     },
     enums: [],
     structs: [],
     messages: []
 };
+
+let headerElements = [
+    { tag: "Field", role: "sync", type: "uint", size: 1 },
+    { tag: "Field", role: "sender", type: "uint", size: 1 },
+    { tag: "Field", role: "destination", type: "uint", size: 1 },
+    { tag: "Field", role: "payloadSize", type: "uint", size: 2 }
+];
 
 let currentViewType = null;
 let currentViewId = null;
@@ -68,26 +63,21 @@ function handleHashChange() {
 function showExplorer(updateHashFlag = true) {
     currentSettingsSection = 'general';
     
-    // Update hash only when not called from hash change handler
     if (updateHashFlag) {
         updateHash('explorer');
     }
     
-    // Hide settings sidebar and content
     document.getElementById('settings-sidebar').style.display = 'none';
     document.getElementById('settings-content').style.display = 'none';
     
-    // Show original sidebar and properties panel
     document.getElementById('sidebar-left').style.display = 'flex';
     document.getElementById('sidebar-right').style.display = 'block';
     
-    // Reset main view to show nothing selected
     document.getElementById('view-title').innerText = "Seçili Öğe Yok";
     document.getElementById('enum-toolbar').style.display = 'none';
     document.getElementById('struct-toolbar').style.display = 'none';
     document.getElementById('protocol-crc-toolbar').style.display = 'none';
     document.getElementById('protocol-framing-toolbar').style.display = 'none';
-    document.getElementById('protocol-header-toolbar').style.display = 'none';
     document.getElementById('enum-view-container').style.display = 'none';
     document.getElementById('memory-map-container').style.display = 'none';
     document.getElementById('delete-element-btn').style.display = 'none';
@@ -98,7 +88,6 @@ function showExplorer(updateHashFlag = true) {
     selectedItemIndex = null;
 }
 
-// Initialize hash routing on page load
 document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('hashchange', handleHashChange);
 
@@ -109,10 +98,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Check initial hash
+    HeaderTable();
+
     const hash = window.location.hash.substring(1);
     if (!hash) {
-        // Default to explorer view without updating hash initially
         showExplorer(false);
     } else {
         handleHashChange();
@@ -123,7 +112,7 @@ function generateUUID() {
     return Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
-let _modalCallback = null;
+let _modalCallback = null;render
 let _modalCancelCallback = null;
 
 function showPrompt(message, callback, defaultVal = '') {
@@ -367,7 +356,17 @@ function syncProtocolToMessages() {
     TAL.messages.forEach(msg => {
         msg.fields = msg.fields.filter(f => !f.isHeader && !f.isCrc);
         
-        const headerClones = TAL.protocol.fields.filter(f => !f.isSpare).map(f => ({ ...f, isHeader: true, id: generateUUID() }));
+        const headerClones = headerElements.map(h => ({
+            id: generateUUID(),
+            name: h.tag === 'Spare' ? 'spare' : (h.role || 'headerField'),
+            size: h.size * 8, 
+            typeId: 'primitive',
+            comment: h.tag === 'Spare' ? 'Hizalama' : h.role,
+            isSpare: h.tag === 'Spare',
+            isArray: false,
+            countFieldId: '',
+            isHeader: true
+        }));
         
         const crcFields = [];
         if (TAL.protocol.crcSize > 0) {
@@ -393,6 +392,7 @@ function changeCrc() {
 }
 
 function readFramingFromForm() {
+    if (typeof TALFraming === 'undefined') return {};
     return TALFraming.normalize({
         startMarker: {
             enabled: document.getElementById('framingStartEnabled').checked,
@@ -415,6 +415,7 @@ function readFramingFromForm() {
 
 function applyFramingToForm() {
     const f = TAL.protocol.config.framing;
+    if (!f) return;
     document.getElementById('framingStartEnabled').checked = f.startMarker.enabled;
     document.getElementById('framingStartValue').value = f.startMarker.value;
     document.getElementById('framingEndEnabled').checked = f.endMarker.enabled;
@@ -484,22 +485,9 @@ function syncFieldError(spanId, inputId, errors, keywords) {
 function changeFraming() {
     toggleFramingInputs();
     TAL.protocol.config.framing = readFramingFromForm();
-    renderFramingErrors(TALFraming.validate(TAL.protocol.config.framing));
-    updateByteTable();
-}
-
-function changeHeaderConfig() {
-    TAL.protocol.config.header.senderAddress = document.getElementById('headerSenderAddress').value;
-    TAL.protocol.config.header.receiverAddress = document.getElementById('headerReceiverAddress').value;
-    TAL.protocol.config.header.broadcast = document.getElementById('headerBroadcast').checked;
-    TAL.protocol.config.header.messageId = parseInt(document.getElementById('headerMessageId').value) || 0;
-    TAL.protocol.config.header.messageType = document.getElementById('headerMessageType').value;
-    TAL.protocol.config.header.messageSize = parseInt(document.getElementById('headerMessageSize').value) || 0;
-    TAL.protocol.config.header.protocolVersion = document.getElementById('headerProtocolVersion').value;
-    TAL.protocol.config.header.sequenceNumber = parseInt(document.getElementById('headerSequenceNumber').value) || 0;
-    TAL.protocol.config.header.priorityLevel = document.getElementById('headerPriorityLevel').value;
-    TAL.protocol.config.header.timestamp = document.getElementById('headerTimestamp').checked;
-    syncProtocolToMessages();
+    if (typeof TALFraming !== 'undefined') {
+        renderFramingErrors(TALFraming.validate(TAL.protocol.config.framing));
+    }
     updateByteTable();
 }
 
@@ -521,6 +509,7 @@ function showSettingsSection(section) {
 }
 
 function renderProtocolSummary() {
+    if (typeof TALFraming === 'undefined') return;
     const framing = TAL.protocol.config.framing || TALFraming.defaultFraming();
     const framingErrors = TALFraming.validate(framing);
 
@@ -557,13 +546,14 @@ function renderProtocolSummary() {
 
 function updateByteTable() {
     const tbody = document.getElementById('byte-table-body');
+    if (!tbody) return;
     tbody.innerHTML = '';
     
     let totalBytes = 0;
     const config = TAL.protocol.config;
     const framing = config.framing;
 
-    if (framing.startMarker.enabled) {
+    if (framing && framing.startMarker.enabled && typeof TALFraming !== 'undefined') {
         const size = TALFraming.hexByteLength(framing.startMarker.value);
         tbody.innerHTML += `
             <tr>
@@ -576,39 +566,22 @@ function updateByteTable() {
         `;
         totalBytes += size;
     }
-    
-    const headerFields = [
-        { name: 'Sender Address', type: 'Hex/Text', hex: config.header.senderAddress || '-', enabled: config.header.senderAddress !== '', size: 1 },
-        { name: 'Receiver Address', type: 'Hex/Text', hex: config.header.receiverAddress || '-', enabled: config.header.receiverAddress !== '', size: 1 },
-        { name: 'Broadcast', type: 'Boolean', hex: config.header.broadcast ? '0x01' : '0x00', enabled: config.header.broadcast, size: 1 },
-        { name: 'Message ID', type: 'Number', hex: '0x' + (config.header.messageId || 0).toString(16).padStart(4, '0').toUpperCase(), enabled: config.header.messageId !== 0, size: 2 },
-        { name: 'Message Type', type: 'Enum', hex: '-', enabled: true, size: 1 },
-        { name: 'Message Size', type: 'Number', hex: '-', enabled: config.header.messageSize !== 0, size: 2 },
-        { name: 'Protocol Version', type: 'String', hex: config.header.protocolVersion || '-', enabled: config.header.protocolVersion !== '', size: 1 },
-        { name: 'Sequence Number', type: 'Number', hex: '-', enabled: config.header.sequenceNumber !== 0, size: 2 },
-        { name: 'Priority Level', type: 'Enum', hex: '-', enabled: true, size: 1 },
-        { name: 'Timestamp', type: 'Boolean', hex: '-', enabled: config.header.timestamp, size: 4 }
-    ];
-    
-    headerFields.forEach(field => {
-        const statusClass = field.enabled ? 'status-active' : 'status-inactive';
-        const statusText = field.enabled ? 'Aktif' : 'Pasif';
+    headerElements.forEach(el => {
+        let roleName = el.tag === 'Spare' ? 'Boşluk (Spare)' : (el.role || 'Özel Alan');
         tbody.innerHTML += `
             <tr>
-                <td>${field.name}</td>
-                <td>${field.type}</td>
-                <td style="font-family: monospace; color: #a5d6ff;">${field.hex}</td>
-                <td style="text-align: right;">${field.size}</td>
-                <td style="text-align: center;"><span class="status-badge ${statusClass}">${statusText}</span></td>
+                <td>Header: ${roleName}</td>
+                <td>${el.tag === 'Spare' ? '-' : el.type}</td>
+                <td style="font-family: monospace; color: #a5d6ff;">-</td>
+                <td style="text-align: right;">${el.size}</td>
+                <td style="text-align: center;"><span class="status-badge status-active">Aktif</span></td>
             </tr>
         `;
-        if (field.enabled) {
-            totalBytes += field.size;
-        }
+        totalBytes += parseInt(el.size);
     });
     
     // End Marker
-    if (framing.endMarker.enabled) {
+    if (framing && framing.endMarker.enabled && typeof TALFraming !== 'undefined') {
         const size = TALFraming.hexByteLength(framing.endMarker.value);
         tbody.innerHTML += `
            <tr>
@@ -622,33 +595,34 @@ function updateByteTable() {
         totalBytes += size;
     }
 
-    // Framing settings (no fixed byte cost on the wire)
-    const framingSettings = [
-        {
-            name: 'Byte Stuffing',
-            hex: framing.byteStuffing.enabled
-                ? `Esc ${framing.byteStuffing.escapeByte} / Mask ${framing.byteStuffing.mask}`
-                : '-',
-            enabled: framing.byteStuffing.enabled
-        },
-        { name: 'Padding', hex: framing.padding || '-', enabled: framing.padding !== '' },
-        { name: 'Endianness', hex: framing.endianness || '-', enabled: framing.endianness !== '' },
-        { name: 'Max Payload Size', hex: framing.maxPayloadSize || '-', enabled: framing.maxPayloadSize !== '' }
-    ];
+    if (framing) {
+        const framingSettings = [
+            {
+                name: 'Byte Stuffing',
+                hex: framing.byteStuffing.enabled
+                    ? `Esc ${framing.byteStuffing.escapeByte} / Mask ${framing.byteStuffing.mask}`
+                    : '-',
+                enabled: framing.byteStuffing.enabled
+            },
+            { name: 'Padding', hex: framing.padding || '-', enabled: framing.padding !== '' },
+            { name: 'Endianness', hex: framing.endianness || '-', enabled: framing.endianness !== '' },
+            { name: 'Max Payload Size', hex: framing.maxPayloadSize || '-', enabled: framing.maxPayloadSize !== '' }
+        ];
 
-    framingSettings.forEach(field => {
-        const statusClass = field.enabled ? 'status-active' : 'status-inactive';
-        const statusText = field.enabled ? 'Aktif' : 'Pasif';
-        tbody.innerHTML += `
-            <tr>
-                <td>${field.name}</td>
-                <td>Ayar</td>
-                <td style="font-family: monospace; color: #a5d6ff;">${escapeXml(field.hex)}</td>
-                <td style="text-align: right;">-</td>
-                <td style="text-align: center;"><span class="status-badge ${statusClass}">${statusText}</span></td>
-            </tr>
-        `;
-    });
+        framingSettings.forEach(field => {
+            const statusClass = field.enabled ? 'status-active' : 'status-inactive';
+            const statusText = field.enabled ? 'Aktif' : 'Pasif';
+            tbody.innerHTML += `
+                <tr>
+                    <td>${field.name}</td>
+                    <td>Ayar</td>
+                    <td style="font-family: monospace; color: #a5d6ff;">${escapeXml(field.hex)}</td>
+                    <td style="text-align: right;">-</td>
+                    <td style="text-align: center;"><span class="status-badge ${statusClass}">${statusText}</span></td>
+                </tr>
+            `;
+        });
+    }
     
     // CRC
     if (TAL.protocol.crcSize > 0) {
@@ -657,15 +631,108 @@ function updateByteTable() {
                 <td>CRC (${TAL.protocol.crcType})</td>
                 <td>Checksum</td>
                 <td style="font-family: monospace; color: #a5d6ff;">Oto. Hesaplanır</td>
-                <td style="text-align: right;">${TAL.protocol.crcSize}</td>
+                <td style="text-align: right;">${TAL.protocol.crcSize / 8}</td>
                 <td style="text-align: center;"><span class="status-badge status-active">Aktif</span></td>
             </tr>
         `;
-        totalBytes += TAL.protocol.crcSize;
+        totalBytes += (TAL.protocol.crcSize / 8);
     }
     
     document.getElementById('total-bytes').textContent = `${totalBytes} Byte`;
 }
+
+function renderHeaderTable() {
+    const tbody = document.getElementById('dynamic-header-body');
+    if(!tbody) return;
+    
+    tbody.innerHTML = ''; 
+
+    const hasBroadcast = headerElements.some(el => el.role === 'broadcast' && el.tag !== 'Spare');
+
+    headerElements.forEach((element, index) => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = "1px solid #333";
+        
+        let roleDisplay = element.role;
+        if (element.role === 'destination' && hasBroadcast) {
+            roleDisplay += ' (Opsiyonel)';
+        }
+        
+        tr.innerHTML = `
+            <td style="padding: 8px 0;">
+                <select onchange="updateHeaderElement(${index}, 'tag', this.value)" style="width: 90%;">
+                    <option value="Field" ${element.tag === 'Field' ? 'selected' : ''}>Field (Veri)</option>
+                    <option value="Spare" ${element.tag === 'Spare' ? 'selected' : ''}>Spare (Boşluk)</option>
+                </select>
+            </td>
+            <td>
+                <select onchange="updateHeaderElement(${index}, 'role', this.value)" style="width: 90%;" ${element.tag === 'Spare' ? 'disabled' : ''}>
+                    <option value="custom" ${element.role === 'custom' ? 'selected' : ''}>-- Özel Alan --</option>
+                    <option value="sync" ${element.role === 'sync' ? 'selected' : ''}>Sync</option>
+                    <option value="sender" ${element.role === 'sender' ? 'selected' : ''}>Sender</option>
+                    <option value="destination" ${element.role === 'destination' ? 'selected' : ''}>Destination ${hasBroadcast && element.role === 'destination' ? '(Seçimlik)' : '*'}</option>
+                    <option value="broadcast" ${element.role === 'broadcast' ? 'selected' : ''}>Broadcast</option>
+                    <option value="messageId" ${element.role === 'messageId' ? 'selected' : ''}>Message ID</option>
+                    <option value="messageType" ${element.role === 'messageType' ? 'selected' : ''}>Message Type</option>
+                    <option value="payloadSize" ${element.role === 'payloadSize' ? 'selected' : ''}>Payload Size</option>
+                </select>
+            </td>
+            <td>
+                ${element.tag === 'Spare' 
+                    ? '<span style="color: #777; text-align: center; display: block; width: 90%;">—</span>' 
+                    : `<select onchange="updateHeaderElement(${index}, 'type', this.value)" style="width: 90%;" ${element.role === 'payloadSize' ? 'disabled' : ''}>
+                        <option value="uint" ${element.type === 'uint' ? 'selected' : ''}>uint</option>
+                        <option value="enum" ${element.type === 'enum' ? 'selected' : ''}>enum</option>
+                        <option value="bool" ${element.type === 'bool' ? 'selected' : ''}>bool</option>
+                       </select>`
+                }
+            </td>
+            <td>
+                <input type="number" min="1" value="${element.size}" onchange="updateHeaderElement(${index}, 'size', this.value)" style="width: 60px;">
+            </td>
+            <td>
+                <button onclick="removeHeaderRow(${index})" style="background-color: #c0392b; color: white; border: none; padding: 4px 8px; cursor: pointer; border-radius: 3px;">Sil</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function addHeaderRow() {
+    headerElements.push({ tag: "Field", role: "custom", type: "uint", size: 1 });
+    renderHeaderTable();
+    updateByteTable();
+    syncProtocolToMessages();
+}
+
+function updateHeaderElement(index, key, newValue) {
+    if (key === 'size') {
+        newValue = parseInt(newValue) || 1;
+    }
+    headerElements[index][key] = newValue;
+    
+    if (key === 'tag' && newValue === 'Spare') {
+        headerElements[index].role = "";
+        headerElements[index].type = "";
+    }
+    
+    if (key === 'role' && newValue === 'payloadSize') {
+        headerElements[index].type = 'uint';
+    }
+    
+    renderHeaderTable();
+    updateByteTable();
+    syncProtocolToMessages();
+}
+
+function removeHeaderRow(index) {
+    headerElements.splice(index, 1);
+    renderHeaderTable();
+    updateByteTable();
+    syncProtocolToMessages();
+}
+
+// ------------------------------------------------------------------
 
 function rebuildSpares(obj) {
     if (obj.type === 'enum') return;
@@ -725,7 +792,6 @@ function loadView(type, id, updateHashFlag = true) {
         document.getElementById('struct-toolbar').style.display = 'none';
         document.getElementById('protocol-crc-toolbar').style.display = 'none';
         document.getElementById('protocol-framing-toolbar').style.display = 'none';
-        document.getElementById('protocol-header-toolbar').style.display = 'none';
         document.getElementById('enum-view-container').style.display = 'none';
         document.getElementById('memory-map-container').style.display = 'none';
         document.getElementById('delete-element-btn').style.display = 'none';
@@ -755,37 +821,25 @@ function loadView(type, id, updateHashFlag = true) {
     document.getElementById('struct-toolbar').style.display = isStructOrMessage ? 'flex' : 'none';
     document.getElementById('protocol-crc-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
     document.getElementById('protocol-framing-toolbar').style.display = type === 'protocol' ? 'block' : 'none';
-    document.getElementById('protocol-header-toolbar').style.display = type === 'protocol' ? 'block' : 'none';
     document.getElementById('memory-map-container').style.display = isStructOrMessage ? 'block' : 'none';
 
     if (type === 'protocol') {
-
         document.getElementById('sidebar-left').style.display = 'none';
         document.getElementById('sidebar-right').style.display = 'none';
         document.getElementById('settings-sidebar').style.display = 'flex';
         document.getElementById('settings-content').style.display = 'block';
         document.getElementById('protocol-settings-panel').style.display = 'block';
-
+        
         const selectEl = document.getElementById('protocolCrcSelect');
         if (selectEl) selectEl.value = `${TAL.protocol.crcType}_${TAL.protocol.crcSize}`;
         
-        if (!TAL.protocol.config.framing) {
-            TAL.protocol.config.framing = TALFraming.defaultFraming();
+        if (typeof TALFraming !== 'undefined') {
+            if (!TAL.protocol.config.framing) TAL.protocol.config.framing = TALFraming.defaultFraming();
+            applyFramingToForm();
+            renderFramingErrors(TALFraming.validate(TAL.protocol.config.framing));
         }
-        applyFramingToForm();
-        renderFramingErrors(TALFraming.validate(TAL.protocol.config.framing));
-        
-        document.getElementById('headerSenderAddress').value = TAL.protocol.config.header.senderAddress;
-        document.getElementById('headerReceiverAddress').value = TAL.protocol.config.header.receiverAddress;
-        document.getElementById('headerBroadcast').checked = TAL.protocol.config.header.broadcast;
-        document.getElementById('headerMessageId').value = TAL.protocol.config.header.messageId;
-        document.getElementById('headerMessageType').value = TAL.protocol.config.header.messageType;
-        document.getElementById('headerMessageSize').value = TAL.protocol.config.header.messageSize;
-        document.getElementById('headerProtocolVersion').value = TAL.protocol.config.header.protocolVersion;
-        document.getElementById('headerSequenceNumber').value = TAL.protocol.config.header.sequenceNumber;
-        document.getElementById('headerPriorityLevel').value = TAL.protocol.config.header.priorityLevel;
-        document.getElementById('headerTimestamp').checked = TAL.protocol.config.header.timestamp;
-        
+
+        renderHeaderTable();
         updateByteTable();
         showSettingsSection(currentSettingsSection);
     } else {
@@ -1460,11 +1514,23 @@ function generateXML() {
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<TAL_Protocol>\n';
 
     xml += `  <Protocol crcType="${escapeXml(TAL.protocol.crcType)}" crcSize="${TAL.protocol.crcSize}">\n`;
-    if (!TAL.protocol.config.framing) {
-        TAL.protocol.config.framing = TALFraming.defaultFraming();
+    if (typeof TALFraming !== 'undefined') {
+        if (!TAL.protocol.config.framing) TAL.protocol.config.framing = TALFraming.defaultFraming();
+        const framingXml = TALFraming.serialize(TAL.protocol.config.framing, '  ');
+        xml += framingXml.split('\n').map(line => '    ' + line).join('\n') + '\n';
     }
-    const framingXml = TALFraming.serialize(TAL.protocol.config.framing, '  ');
-    xml += framingXml.split('\n').map(line => '    ' + line).join('\n') + '\n';
+
+    // DINAMIK HEADER - XML URETIMI
+    xml += `    <HeaderElements>\n`;
+    headerElements.forEach(h => {
+        if(h.tag === 'Spare') {
+            xml += `      <Spare size="${h.size}" />\n`;
+        } else {
+            xml += `      <Field role="${h.role}" type="${h.type}" size="${h.size}" />\n`;
+        }
+    });
+    xml += `    </HeaderElements>\n`;
+
     TAL.protocol.fields.forEach(f => {
         let typeName = f.typeId === 'primitive' ? 'primitive' : getCustomTypeName(f.typeId);
         let isArrayAttr = f.isArray ? ` isArray="true" countField="${escapeXml(getCountFieldName(TAL.protocol, f.countFieldId))}"` : '';
@@ -1507,18 +1573,20 @@ function generateXML() {
 }
 
 function downloadXML() {
-    if (!TAL.protocol.config.framing) {
-        TAL.protocol.config.framing = TALFraming.defaultFraming();
-    }
-    const framingErrors = TALFraming.validate(TAL.protocol.config.framing);
-    if (framingErrors.length > 0) {
-        renderFramingErrors(framingErrors);
-        if (currentViewType !== 'protocol') {
-            loadView('protocol', 'protocol');
+    if (typeof TALFraming !== 'undefined') {
+        if (!TAL.protocol.config.framing) {
+            TAL.protocol.config.framing = TALFraming.defaultFraming();
         }
-        showAlert('Kaydedilemedi. Lütfen çerçeveleme ayarlarını düzeltin:\n\n' +
-            framingErrors.map(e => '• ' + e).join('\n'));
-        return;
+        const framingErrors = TALFraming.validate(TAL.protocol.config.framing);
+        if (framingErrors.length > 0) {
+            renderFramingErrors(framingErrors);
+            if (currentViewType !== 'protocol') {
+                loadView('protocol', 'protocol');
+            }
+            showAlert('Kaydedilemedi. Lütfen çerçeveleme ayarlarını düzeltin:\n\n' +
+                framingErrors.map(e => '• ' + e).join('\n'));
+            return;
+        }
     }
 
     generateXML();
@@ -1559,24 +1627,13 @@ function loadXML(event) {
             crcSize: 0, 
             comment: '',
             config: {
-                framing: TALFraming.defaultFraming(),
-                header: {
-                    senderAddress: '0x00',
-                    receiverAddress: '0xFF',
-                    broadcast: false,
-                    messageId: 0,
-                    messageType: 'command',
-                    messageSize: 0,
-                    protocolVersion: '1.0',
-                    sequenceNumber: 0,
-                    priorityLevel: 'normal',
-                    timestamp: false
-                }
+                framing: typeof TALFraming !== 'undefined' ? TALFraming.defaultFraming() : null
             }
         };
         TAL.enums = [];
         TAL.structs = [];
         TAL.messages = [];
+        headerElements = [];
         
         const nameMap = {};
         
@@ -1584,23 +1641,41 @@ function loadXML(event) {
         if (protocolNode) {
             TAL.protocol.crcType = protocolNode.getAttribute("crcType") || 'NONE';
             TAL.protocol.crcSize = parseInt(protocolNode.getAttribute("crcSize") || 0);
-            TAL.protocol.config.framing = TALFraming.parse(xmlText);
+            if (typeof TALFraming !== 'undefined') {
+                TAL.protocol.config.framing = TALFraming.parse(xmlText);
+            }
             
+            const headerNode = protocolNode.getElementsByTagName("HeaderElements")[0];
+            if(headerNode) {
+                const hFields = headerNode.children;
+                for(let k = 0; k < hFields.length; k++) {
+                    const hf = hFields[k];
+                    if(hf.tagName === 'Spare') {
+                        headerElements.push({ tag: 'Spare', role: '', type: '', size: parseInt(hf.getAttribute('size')) });
+                    } else {
+                        headerElements.push({ tag: 'Field', role: hf.getAttribute('role'), type: hf.getAttribute('type'), size: parseInt(hf.getAttribute('size')) });
+                    }
+                }
+            }
+
             const fieldNodes = protocolNode.getElementsByTagName("Field");
             for (let j = 0; j < fieldNodes.length; j++) {
                 const fNode = fieldNodes[j];
-                TAL.protocol.fields.push({
-                    id: generateUUID(),
-                    name: fNode.getAttribute("name"),
-                    rawType: fNode.getAttribute("type"),
-                    size: parseInt(fNode.getAttribute("size")),
-                    isSpare: fNode.getAttribute("spare") === "true",
-                    isArray: fNode.getAttribute("isArray") === "true",
-                    rawCountField: fNode.getAttribute("countField") || "",
-                    comment: fNode.getAttribute("comment") || "",
-                    typeId: "primitive",
-                    countFieldId: ""
-                });
+
+                if(fNode.parentNode.tagName !== 'HeaderElements') {
+                    TAL.protocol.fields.push({
+                        id: generateUUID(),
+                        name: fNode.getAttribute("name"),
+                        rawType: fNode.getAttribute("type"),
+                        size: parseInt(fNode.getAttribute("size")),
+                        isSpare: fNode.getAttribute("spare") === "true",
+                        isArray: fNode.getAttribute("isArray") === "true",
+                        rawCountField: fNode.getAttribute("countField") || "",
+                        comment: fNode.getAttribute("comment") || "",
+                        typeId: "primitive",
+                        countFieldId: ""
+                    });
+                }
             }
         }
         
@@ -1636,20 +1711,22 @@ function loadXML(event) {
                 const fieldNodes = el.getElementsByTagName("Field");
                 for (let j = 0; j < fieldNodes.length; j++) {
                     const fNode = fieldNodes[j];
-                    fields.push({
-                        id: generateUUID(),
-                        name: fNode.getAttribute("name"),
-                        rawType: fNode.getAttribute("type"),
-                        size: parseInt(fNode.getAttribute("size")),
-                        isSpare: fNode.getAttribute("spare") === "true",
-                        isArray: fNode.getAttribute("isArray") === "true",
-                        isHeader: fNode.getAttribute("isHeader") === "true",
-                        isCrc: fNode.getAttribute("isCrc") === "true",
-                        rawCountField: fNode.getAttribute("countField") || "",
-                        comment: fNode.getAttribute("comment") || "",
-                        typeId: "primitive",
-                        countFieldId: ""
-                    });
+                    if(fNode.parentNode.tagName !== 'HeaderElements') {
+                        fields.push({
+                            id: generateUUID(),
+                            name: fNode.getAttribute("name"),
+                            rawType: fNode.getAttribute("type"),
+                            size: parseInt(fNode.getAttribute("size")),
+                            isSpare: fNode.getAttribute("spare") === "true",
+                            isArray: fNode.getAttribute("isArray") === "true",
+                            isHeader: fNode.getAttribute("isHeader") === "true",
+                            isCrc: fNode.getAttribute("isCrc") === "true",
+                            rawCountField: fNode.getAttribute("countField") || "",
+                            comment: fNode.getAttribute("comment") || "",
+                            typeId: "primitive",
+                            countFieldId: ""
+                        });
+                    }
                 }
                 
                 talArray.push({ id, name, type: typeName, comment: "", fields });
@@ -1686,20 +1763,4 @@ function loadXML(event) {
         document.getElementById('xmlOutput').value = xmlText;
     };
     reader.readAsText(file);
-}
-
-function validateHex(inputElement, errorSpanId) {
-    const errorSpan = document.getElementById(errorSpanId);
-    if (!errorSpan) return;
-    
-    const hexRegex = /^0x[0-9A-Fa-f]+$/;
-    const inputValue = inputElement.value.trim();
-    
-    if (inputValue !== "" && !hexRegex.test(inputValue)) {
-        errorSpan.style.display = "block"; 
-        inputElement.style.border = "2px solid #e74c3c"; 
-    } else {
-        errorSpan.style.display = "none";
-        inputElement.style.border = "1px solid #444"; 
-    }
 }
