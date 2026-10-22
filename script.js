@@ -31,7 +31,7 @@ const TAL = {
 let currentViewType = null;
 let currentViewId = null;
 let selectedItemIndex = null;
-let currentSettingsTab = null;
+let currentSettingsSection = 'general';
 
 // Hash Routing
 function updateHash(hash) {
@@ -51,10 +51,8 @@ function handleHashChange() {
     } else if (hash === 'protocol') {
         loadView('protocol', 'protocol', false);
     } else if (hash === 'message') {
-        // DÜZELTME: Sayfa yenilendiğinde verilerin (ve Delete butonunun vs) doğru yüklenmesi için
-        // önce protokol view'ını yüklüyoruz, ardından message sekmesine geçiriyoruz.
         loadView('protocol', 'protocol', false);
-        switchSettingsTab('message', false);
+        showSettingsSection('header');
     } else if (hash.startsWith('enum:')) {
         const id = hash.split(':')[1];
         loadView('enum', id, false);
@@ -68,7 +66,7 @@ function handleHashChange() {
 }
 
 function showExplorer(updateHashFlag = true) {
-    currentSettingsTab = null;
+    currentSettingsSection = 'general';
     
     // Update hash only when not called from hash change handler
     if (updateHashFlag) {
@@ -79,8 +77,9 @@ function showExplorer(updateHashFlag = true) {
     document.getElementById('settings-sidebar').style.display = 'none';
     document.getElementById('settings-content').style.display = 'none';
     
-    // Show original sidebar
+    // Show original sidebar and properties panel
     document.getElementById('sidebar-left').style.display = 'flex';
+    document.getElementById('sidebar-right').style.display = 'block';
     
     // Reset main view to show nothing selected
     document.getElementById('view-title').innerText = "Seçili Öğe Yok";
@@ -102,6 +101,13 @@ function showExplorer(updateHashFlag = true) {
 // Initialize hash routing on page load
 document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('hashchange', handleHashChange);
+
+    document.addEventListener('keydown', (event) => {
+        const modalOpen = document.getElementById('modal-overlay').style.display === 'flex';
+        if (event.key === 'Escape' && currentViewType === 'protocol' && !modalOpen) {
+            showExplorer();
+        }
+    });
     
     // Check initial hash
     const hash = window.location.hash.substring(1);
@@ -497,34 +503,55 @@ function changeHeaderConfig() {
     updateByteTable();
 }
 
-function switchSettingsTab(tab, updateHashFlag = true) {
-    currentSettingsTab = tab;
-    
-    // Update hash only when not called from hash change handler
-    if (updateHashFlag) {
-        if (tab === 'message') {
-            updateHash('message');
-        } else if (tab === 'protocol') {
-            updateHash('protocol');
+function showSettingsSection(section) {
+    const sections = ['general', 'framing', 'header', 'integrity', 'preview'];
+    if (!sections.includes(section)) section = 'general';
+    currentSettingsSection = section;
+
+    document.querySelectorAll('[data-settings-section]').forEach(el => {
+        el.style.display = el.dataset.settingsSection === section ? 'block' : 'none';
+    });
+
+    document.querySelectorAll('.settings-nav-btn').forEach(btn => btn.classList.remove('active'));
+    const navBtn = document.getElementById(`nav-section-${section}`);
+    if (navBtn) navBtn.classList.add('active');
+
+    if (section === 'general') renderProtocolSummary();
+    if (section === 'preview') updateByteTable();
+}
+
+function renderProtocolSummary() {
+    const framing = TAL.protocol.config.framing || TALFraming.defaultFraming();
+    const framingErrors = TALFraming.validate(framing);
+
+    const framingEl = document.getElementById('summary-framing');
+    if (framingEl) {
+        framingEl.innerText = framingErrors.length === 0 ? 'Geçerli' : 'Hatalı';
+        framingEl.classList.toggle('summary-error', framingErrors.length > 0);
+    }
+
+    const integrityEl = document.getElementById('summary-integrity');
+    if (integrityEl) {
+        integrityEl.innerText = TAL.protocol.crcSize > 0
+            ? `${TAL.protocol.crcType}-${TAL.protocol.crcSize}`
+            : 'Yok';
+    }
+
+    const messagesEl = document.getElementById('summary-messages');
+    if (messagesEl) messagesEl.innerText = TAL.messages.length;
+
+    const typesEl = document.getElementById('summary-types');
+    if (typesEl) typesEl.innerText = `${TAL.structs.length} / ${TAL.enums.length}`;
+
+    const validationEl = document.getElementById('summary-validation');
+    if (validationEl) {
+        if (framingErrors.length > 0) {
+            validationEl.innerText = `${framingErrors.length} çerçeveleme hatası var. Framing sekmesinden düzeltin.`;
+            validationEl.classList.add('settings-validation-error');
+        } else {
+            validationEl.innerText = 'Çerçeveleme ayarları geçerli.';
+            validationEl.classList.remove('settings-validation-error');
         }
-    }
-    
-    // Update nav buttons
-    document.getElementById('nav-protocol-settings').classList.remove('active');
-    document.getElementById('nav-message-settings').classList.remove('active');
-    document.getElementById(`nav-${tab}-settings`).classList.add('active');
-    
-    // Show/hide panels
-    document.getElementById('protocol-settings-panel').style.display = tab === 'protocol' ? 'block' : 'none';
-    document.getElementById('message-settings-panel').style.display = tab === 'message' ? 'block' : 'none';
-
-    const viewTitle = document.getElementById('view-title');
-    if (viewTitle) {
-        viewTitle.innerText = tab === 'protocol' ? 'Protokol Ayarları' : 'Mesaj Ayarları';
-    }
-
-    if (tab === 'protocol') {
-        updateByteTable();
     }
 }
 
@@ -706,6 +733,7 @@ function loadView(type, id, updateHashFlag = true) {
         document.getElementById('settings-sidebar').style.display = 'none';
         document.getElementById('settings-content').style.display = 'none';
         document.getElementById('sidebar-left').style.display = 'flex';
+        document.getElementById('sidebar-right').style.display = 'block';
         currentViewType = null;
         currentViewId = null;
         selectedItemIndex = null;
@@ -722,22 +750,22 @@ function loadView(type, id, updateHashFlag = true) {
     document.getElementById('enum-toolbar').style.display = isEnum ? 'flex' : 'none';
     document.getElementById('enum-view-container').style.display = isEnum ? 'block' : 'none';
     
-    document.getElementById('struct-toolbar').style.display = !isEnum ? 'flex' : 'none';
+    const isStructOrMessage = type === 'struct' || type === 'message';
+
+    document.getElementById('struct-toolbar').style.display = isStructOrMessage ? 'flex' : 'none';
     document.getElementById('protocol-crc-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
-    document.getElementById('protocol-framing-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
-    document.getElementById('protocol-header-toolbar').style.display = type === 'protocol' ? 'flex' : 'none';
-    document.getElementById('memory-map-container').style.display = !isEnum ? 'block' : 'none';
+    document.getElementById('protocol-framing-toolbar').style.display = type === 'protocol' ? 'block' : 'none';
+    document.getElementById('protocol-header-toolbar').style.display = type === 'protocol' ? 'block' : 'none';
+    document.getElementById('memory-map-container').style.display = isStructOrMessage ? 'block' : 'none';
 
     if (type === 'protocol') {
 
         document.getElementById('sidebar-left').style.display = 'none';
+        document.getElementById('sidebar-right').style.display = 'none';
         document.getElementById('settings-sidebar').style.display = 'flex';
         document.getElementById('settings-content').style.display = 'block';
-        
-        if (currentSettingsTab !== 'protocol') {
-            switchSettingsTab('protocol', false);
-        }
-        
+        document.getElementById('protocol-settings-panel').style.display = 'block';
+
         const selectEl = document.getElementById('protocolCrcSelect');
         if (selectEl) selectEl.value = `${TAL.protocol.crcType}_${TAL.protocol.crcSize}`;
         
@@ -759,11 +787,14 @@ function loadView(type, id, updateHashFlag = true) {
         document.getElementById('headerTimestamp').checked = TAL.protocol.config.header.timestamp;
         
         updateByteTable();
+        showSettingsSection(currentSettingsSection);
     } else {
         document.getElementById('sidebar-left').style.display = 'flex';
+        document.getElementById('sidebar-right').style.display = 'block';
         document.getElementById('settings-sidebar').style.display = 'none';
         document.getElementById('settings-content').style.display = 'none';
-        currentSettingsTab = null;
+        document.getElementById('protocol-settings-panel').style.display = 'none';
+        currentSettingsSection = 'general';
     }
 
     if (isEnum) {

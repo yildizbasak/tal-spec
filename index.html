@@ -33,14 +33,29 @@
         </div>
 
         <div id="settings-sidebar" style="display: none; width: 250px; background: #2c2c2c; border-right: 1px solid #444; padding: 15px; overflow-y: auto;">
-            <h3 style="color: #e67e22; margin-bottom: 20px;">Ayarlar Menüsü</h3>
+            <button id="settings-back-btn" onclick="showExplorer()" style="background: #3c3c3c; border: 1px solid #555; text-align: center; margin-bottom: 18px;">← Geri</button>
+            <h3 style="color: #e67e22; margin-bottom: 20px;">Protokol Ayarları</h3>
             <div class="settings-nav">
-                <button id="nav-protocol-settings" onclick="switchSettingsTab('protocol')" class="settings-nav-btn active">
-                    📋 Protokol Ayarları
+                <button id="nav-section-general" onclick="showSettingsSection('general')" class="settings-nav-btn active">
+                    Genel
                 </button>
-                <button id="nav-message-settings" onclick="switchSettingsTab('message')" class="settings-nav-btn">
-                    💬 Mesaj Ayarları
+                <button id="nav-section-framing" onclick="showSettingsSection('framing')" class="settings-nav-btn">
+                    Framing
                 </button>
+                <button id="nav-section-header" onclick="showSettingsSection('header')" class="settings-nav-btn">
+                    Header
+                </button>
+                <button id="nav-section-integrity" onclick="showSettingsSection('integrity')" class="settings-nav-btn">
+                    Integrity
+                </button>
+                <button id="nav-section-preview" onclick="showSettingsSection('preview')" class="settings-nav-btn">
+                    Önizleme
+                </button>
+            </div>
+            <div class="settings-actions">
+                <button onclick="generateXML()">XML Üret</button>
+                <button onclick="downloadXML()">XML İndir</button>
+                <button onclick="document.getElementById('xmlFileInput').click()">XML Yükle</button>
             </div>
         </div>
 
@@ -66,7 +81,35 @@
 
             <div id="settings-content" style="display: none; padding: 20px;">
                 <div id="protocol-settings-panel" style="display: none;">
-                    <div id="protocol-framing-toolbar" class="toolbar" style="border-top: 1px solid #333; padding-top: 15px; margin-top: 10px; flex-direction: column; align-items: stretch;">
+                    <div id="settings-section-general" class="settings-section" data-settings-section="general">
+                        <div class="settings-card">
+                            <h4>Protokol Özeti</h4>
+                            <p class="settings-muted">Protokol çerçeveleme, header ve bütünlük ayarlarını buradan yönetin. Değişiklikler anında uygulanır.</p>
+                            <div class="settings-summary-grid">
+                                <div class="summary-item">
+                                    <span class="summary-label">Framing</span>
+                                    <span id="summary-framing" class="summary-value">-</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="summary-label">Integrity</span>
+                                    <span id="summary-integrity" class="summary-value">-</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="summary-label">Mesajlar</span>
+                                    <span id="summary-messages" class="summary-value">0</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="summary-label">Struct / Enum</span>
+                                    <span id="summary-types" class="summary-value">0 / 0</span>
+                                </div>
+                            </div>
+                            <div id="summary-validation" class="settings-validation"></div>
+                            <button onclick="showSettingsSection('preview')" style="width: auto; padding: 8px 16px; margin-top: 16px; text-align: center;">Önizlemeye Git →</button>
+                        </div>
+                    </div>
+
+                    <div id="settings-section-framing" class="settings-section" data-settings-section="framing" style="display: none;">
+                    <div id="protocol-framing-toolbar" class="toolbar" style="padding-top: 0; margin-top: 0; flex-direction: column; align-items: stretch;">
                         <h4 style="color: #e67e22; margin: 0 0 15px 0; font-size: 14px; border-bottom: 1px solid #555; padding-bottom: 8px;">Paket Çerçeveleme (Framing)</h4>
 
                         <div id="framing-errors" style="display: none; background: #4a1f1f; border: 1px solid #e74c3c; border-radius: 4px; padding: 10px 12px; margin-bottom: 12px; color: #ffb3b3; font-size: 12px; line-height: 1.5;"></div>
@@ -142,8 +185,10 @@
                             </div>
                         </div>
                     </div>
+                    </div>
 
-                    <div id="protocol-crc-toolbar" class="toolbar" style="border-top: 1px solid #333; padding-top: 10px; margin-top: 10px;">
+                    <div id="settings-section-integrity" class="settings-section" data-settings-section="integrity" style="display: none;">
+                    <div id="protocol-crc-toolbar" class="toolbar" style="padding-top: 0; margin-top: 0; align-items: center;">
                         <label style="color:white; margin-right: 10px; align-self: center;">Checksum / CRC Seçimi (Sona Eklenir):</label>
                         <select id="protocolCrcSelect" onchange="changeCrc()" style="width: auto;">
                             <option value="NONE_0">Yok</option>
@@ -152,8 +197,11 @@
                             <option value="CRC32_32">CRC-32 (32 bit)</option>
                         </select>
                     </div>
+                    <p class="settings-muted">CRC/Checksum parametreleri (polinom, init, xor-out, custom ifade) issue #6 kapsamında eklenecek.</p>
+                    </div>
 
-<div id="protocol-header-toolbar" class="toolbar" style="border-top: 1px solid #333; padding-top: 15px; margin-top: 10px;">
+                    <div id="settings-section-header" class="settings-section" data-settings-section="header" style="display: none;">
+<div id="protocol-header-toolbar" class="toolbar" style="padding-top: 0; margin-top: 0;">
     <h4 style="color: #e67e22; margin: 0 0 15px 0; font-size: 14px; border-bottom: 1px solid #555; padding-bottom: 8px;">Message Header Ayarları</h4>
     
     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px;">
@@ -247,8 +295,10 @@
         </div>
     </div>
 </div>
+                    </div>
 
-                    <div id="protocol-byte-table" style="margin-top: 20px; border: 1px solid #444; border-radius: 4px; overflow: hidden;">
+                    <div id="settings-section-preview" class="settings-section" data-settings-section="preview" style="display: none;">
+                    <div id="protocol-byte-table" style="border: 1px solid #444; border-radius: 4px; overflow: hidden;">
                         <div style="background: #3c3c3c; padding: 10px 15px; border-bottom: 1px solid #444;">
                             <h4 style="margin: 0; color: #e67e22; font-size: 14px;">📊 Protokol Byte Tablosu</h4>
                         </div>
@@ -274,12 +324,7 @@
                             </tfoot>
                         </table>
                     </div>
-                </div>
-
-                <div id="message-settings-panel" style="display: none; text-align: center; padding: 60px 20px;">
-                    <div style="font-size: 48px; margin-bottom: 20px;">🚧</div>
-                    <h3 style="color: #888; margin-bottom: 10px;">Yakında Eklenecek</h3>
-                    <p style="color: #666;">Mesaj Ayarları özelliği yakında kullanıma sunulacaktır.</p>
+                    </div>
                 </div>
             </div>
 
